@@ -1,146 +1,205 @@
-> **Editor note — personalize, then remove this note and the idea menu.**
-> This is the input to **specify**. Describe observable behavior and learning;
-> save implementation choices for `PLAN.md`. Replace every bracketed field.
-> The defaults below deliberately fit a short workshop. Change them explicitly
-> if your mechanic needs something else. Resolve grading and scope questions
-> during **clarify**, before planning the implementation.
+# Round Trip · First playable specification
 
-# [GAME NAME] · First playable specification
+*Working title. Input to the Spec Kit **specify** step. Build budget: 90 minutes with a coding agent.*
 
 ## The pitch
 
-**[ONE SENTENCE: PLAYER + ACTION + SKILL + VISIBLE CONSEQUENCE].**
+**You finish a short Netmiko-style script by placing code cards into its blanks, run it against two simulated routers, and watch whether a ping gets from hostA to hostB and back.**
 
-The player is [ROLE] in [SETTING]. Each round shows [TECHNICAL EVIDENCE] and asks the player to [DECISION]. A correct decision [VISIBLE RESULT]; an incorrect decision [VISIBLE RESULT AND EXPLANATION]. The session ends when [CONCRETE COMPLETION CONDITION].
+The player is an automation engineer responsible for two routers. Each round shows a topology, the current device state, and a script with blank slots. The player places cards from a tray into the slots and presses Run. A correct script ends with the ping request and its reply both delivered, and the traffic dots complete the round trip. An incorrect script shows the hop where traffic stopped and the script line that caused it. The session ends when all four rounds are solved.
 
 ## Who this is for
 
-- **Learner:** [AUDIENCE AND EXPERIENCE].
-- **Assumed knowledge:** [WHAT THEY ALREADY KNOW; WRITE “NONE” IF APPROPRIATE].
-- **What the briefing teaches:** [TERMS AND METHOD NEEDED BEFORE THE FIRST DECISION].
-- **Why interaction helps:** [A SPECIFIC MISCONCEPTION THIS GAME MAKES VISIBLE].
+- **Learner:** network engineers who are new to automation, or early-career engineers who know basic IOS CLI.
+- **Assumed knowledge:** what an interface, an IP subnet and a static route are. Has seen Python. No Netmiko experience needed.
+- **What the briefing teaches:** the script calls that round uses, how to read the state panel, and the one new idea for that round. The round 1 briefing states that `send_config_set` does not stop when the router rejects a line.
+- **Why interaction helps:** people believe a script that ran without crashing has fixed the network. The game separates three things that are easy to confuse: what the script sent, what the router has in its configuration, and what traffic actually does.
 - **Session target:** 5–10 minutes for a first playthrough, with unlimited thinking time.
 
 ## Learning outcomes and evidence
 
-Use observable verbs such as identify, calculate, order, compare, or diagnose. Replace the rows with your topic's skills.
-
 | ID | After playing, the learner can… | The game asks them to… | Evidence of success |
 | --- | --- | --- | --- |
-| LO1 | [FOUNDATIONAL SKILL] | [PLAYER ACTION] | [CHECKABLE RESULT] |
-| LO2 | [APPLY THE RULE TO COMPETING CHOICES] | [PLAYER ACTION] | [CHECKABLE RESULT] |
-| LO3 | [HANDLE AN EXCEPTION OR TRANSFER CASE] | [PLAYER ACTION] | [CHECKABLE RESULT] |
+| LO1 | Order configuration lines so each runs in the right CLI context, and recognise that a rejected line does not stop the script | Place `interface` and `no shutdown` cards in order | Round 1 solved; the link turns up and the ping completes |
+| LO2 | Diagnose a one-way path and identify that traffic needs a route in each direction | Choose which router needs a route and which `ip route` card it needs | Round 2 solved; request and reply are both delivered |
+| LO3 | Save a change so it survives a reload, on every router a loop touches | Place the `save_config()` card, including inside or after a `for` loop | Rounds 3 and 4 solved; the ping still completes after both routers reload |
 
 ## The technical model
 
-- **Rule being taught:** [PRECISE RULE, INCLUDING ORDER/TIE-BREAKS IF THEY MATTER].
-- **Context:** [PROTOCOL VERSION, VENDOR, OR SIMPLIFIED MODEL].
-- **Assumptions:** [WHAT IS ALREADY TRUE WHEN A ROUND STARTS].
-- **Excluded behavior:** [WHAT A REAL NETWORK MIGHT DO THAT THIS GAME DOES NOT MODEL].
-- **Authoritative references:** [URL + SECTION + THE CLAIM IT SUPPORTS].
+### Topology (fixed for every round)
 
-Tell the learner about these boundaries in plain language. If two answers can both be valid, define how the game accepts them or remove that ambiguity from the first version.
+```text
+hostA ───────── r1 ═══════════ r2 ───────── hostB
+10.10.0.10   Gi0/0  Gi0/1   Gi0/1  Gi0/0   10.20.0.10
+             10.10.0.1  192.0.2.1  192.0.2.2  10.20.0.1
+   10.10.0.0/24        192.0.2.0/30        10.20.0.0/24
+```
+
+`Gi0/0` on each router faces its host and is always up. `Gi0/1` is the link between the routers.
+
+### Rules being taught
+
+1. **CLI context.** `no shutdown` and `shutdown` are accepted only after an `interface …` line in the same `send_config_set` call. At global configuration level the router rejects them and nothing changes.
+2. **Link state.** The r1–r2 link is up only when `Gi0/1` is enabled on both routers.
+3. **Route installation.** A static route in the running configuration is installed in the routing table only if its next hop is inside a connected subnet whose link is up. A connected subnet is in the routing table only while its link is up.
+4. **Own address.** The router rejects a static route whose next hop is one of its own interface addresses.
+5. **Forwarding.** Each router forwards using the route in its routing table that contains the destination. No two routes overlap in this game. With no matching route the packet is dropped at that router. The reply is a separate packet from hostB to hostA and is forwarded by the same rule.
+6. **Persistence.** `save_config()` copies the running configuration to the startup configuration. A reload replaces the running configuration with the startup configuration.
+7. **Loop variables.** After a `for` loop ends, `conn` refers to the last connection only, so a call placed after the loop acts on the last router alone.
+8. **Silent rejection.** When the router rejects a configuration line, `send_config_set` records the router's message and carries on. The script does not stop.
+
+### Script language
+
+A script is a fixed scaffold with typed blank slots. The only calls are:
+
+| Call | Effect in the simulator |
+| --- | --- |
+| `conn = ConnectHandler(**device)` | Opens a session to the named router |
+| `conn.send_config_set([...])` | Applies each configuration line in order, starting at global configuration level |
+| `conn.send_command("show …")` | Reads state; changes nothing |
+| `conn.save_config()` | Running configuration becomes startup configuration |
+
+Plus `for device in [r1, r2]:` with an indented body, and `print(...)`, which does nothing. Slot types are **device**, **config line** and **statement**; a card fits only slots of its own type. Each card is used at most once per round.
+
+**Every Run starts from the round's starting state.** Nothing carries over from an earlier run, so the outcome depends only on the round and the cards placed.
+
+### Context, assumptions and exclusions
+
+- **Context:** a simplified model of Cisco IOS behaviour, driven by method names taken from the Netmiko library. It is a simulator; no real device, SSH session or Python interpreter is involved.
+- **Assumptions:** host addresses and gateways are correct. Router interface addresses are already configured. There is no default route.
+- **Excluded behaviour:** ARP, dynamic routing, administrative distance, equal-cost paths, recursive next-hop resolution, exit-interface static routes, IPv6, enable/privilege modes, closing sessions, authentication failures, timeouts, output parsing, and ICMP error messages.
+- **Simplified timing:** the game installs and withdraws static routes instantly. Cisco's `ip route` reference says a real router can take up to about a minute, because it rechecks next hops periodically.
+- **References** (checked 2026-11-17):
+  - Netmiko source, [`base_connection.py`](https://github.com/ktbyers/netmiko/blob/develop/netmiko/base_connection.py), `send_config_set` — `error_pattern` defaults to an empty string and `ConfigInvalidException` is raised only when a pattern is supplied and matches. Supports rule 8. The same method enters and leaves configuration mode by default.
+  - Netmiko source, [`cisco/cisco_ios.py`](https://github.com/ktbyers/netmiko/blob/develop/netmiko/cisco/cisco_ios.py), `save_config` — sends `write mem` on Cisco IOS. Supports rule 6.
+  - Netmiko API documentation, [`netmiko.base_connection`](https://ktbyers.github.io/netmiko/docs/netmiko/base_connection.html) — supports the call names.
+  - Cisco, [IP Routing Configuration Guide, IOS XE 17.17 (Catalyst 9600), Protocol-Independent Features](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9600/software/release/17-17/configuration_guide/rtng/b_1717_rtng_9600_cg/protocol_independent_features.html) — a static route is removed from the routing table when its interface goes down or no valid next hop can be found, and stays in the configuration. Supports rule 3.
+  - Cisco, [IOS IP Routing: Protocol-Independent Command Reference, `ip route`](https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi1.html) — a static route is a candidate only if its next hop resolves to a valid output interface. Supports rule 3 and the timing note.
+  - Cisco, [Using the Command-Line Interface, Catalyst 9300, IOS XE 17.17](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-17/command_reference/b_1717_9300_cr/using_the_command_line_interface.html), common CLI error messages — gives the wording `% Invalid input detected at '^' marker.` and `% Incomplete command.`
+  - Cisco Learning Network, [thread 46334](https://learningnetwork.cisco.com/thread/46334) — community report of `%Invalid next hop address (it's this router)`. Supports rule 4, but it is a forum post, not Cisco documentation.
+  - **No source found yet** for rule 1's claim that `no shutdown` is rejected at global configuration level, or for rule 2.
+
+The briefing for each round states these limits in plain language.
 
 ## The repeatable game loop
 
-1. **Brief:** introduce one concept, its terms, and a worked example different from the challenge.
-2. **Inspect:** show [PACKET/TABLE/RECORDS/TOPOLOGY] with all decision-relevant values visible.
-3. **Choose:** the player [SELECTS/ORDERS/TYPES/BUILDS] and explicitly submits the decision.
-4. **Explain:** display the result, the relevant values, and the rule that connects them.
-5. **Retry or advance:** a wrong answer leaves the round playable; a correct answer enables Next.
-6. **Reflect:** the level summary shows completed rounds, valid attempts, and assistance used.
+1. **Brief:** one new idea, the terms it needs, and a worked example that differs from the challenge. Each of the four rounds has its own short briefing.
+2. **Inspect:** the topology diagram, a compact state panel for each router, and the script with its blank slots. Every round opens with a ping from the starting state. The opening trace says only where traffic stopped; the reason is left for the player to find in the state panels.
+3. **Choose:** the player places cards into slots, then presses **Run**. A live **Runs: n** counter sits beside the button.
+4. **Explain:** the script runs one line at a time. Each line is highlighted as it runs, and the state row it changed flashes. Then the ping trace plays as moving dots and as text, followed by the rule that explains the result.
+5. **Retry or advance:** a failed ping leaves the round playable with the cards still placed; a completed round trip enables **Next**.
+6. **Reflect:** the session summary lists each round with its run count, whether the hint was used, and a **first run** mark for rounds solved on the first Run.
 
-**Worked interaction:** [WRITE A SHORT SCENE WITH REAL VALUES: WHAT THE PLAYER SEES, A PLAUSIBLE WRONG MOVE, THE EXACT FEEDBACK, AND THE CORRECT MOVE].
+**Placing cards:** select a card, then select a slot. This works with mouse, touch and keyboard. Selecting a filled slot returns its card to the tray. Dragging is a stretch feature layered on the same action.
+
+**State panel (per router):** the state of `Gi0/1`, shown as *up*, *administratively down* (shut on this router) or *down* (the other end is shut); the static routes in the running configuration; the routing table; and a *saved* or *unsaved changes* badge.
+
+**Worked interaction (round 2).** The link is up. r1 already has `ip route 10.20.0.0 255.255.255.0 192.0.2.2`; r2 has no static route. The opening trace reads: "Request delivered to hostB. Reply dropped at r2." The script has a device slot and one config-line slot. A player thinking only about the forward direction places `r1` and `ip route 10.20.0.0 255.255.255.0 192.0.2.2`, and presses Run. Feedback: "r1 already had this route, so nothing changed. The request still reaches hostB. The reply is dropped at r2: r2 has no route back to 10.10.0.0/24. Traffic needs a route in each direction." The counter reads Runs: 1. The player swaps to `r2` and `ip route 10.10.0.0 255.255.255.0 192.0.2.1`. The reply dots now travel back to hostA.
 
 ## Required stories and acceptance criteria
 
 ### US1 · Make and understand a decision — P1
 
-As a learner, I want to apply the rule to visible evidence and understand the result.
-
-- **AC1:** Given a fresh session, when I start, then I see the first briefing before answering a challenge.
-- **AC2:** Given [SPECIFIC VALID CHALLENGE], when I submit [CORRECT CHOICE], then [EXACT OUTCOME] and an explanation appear.
-- **AC3:** Given that challenge, when I submit [PLAUSIBLE WRONG CHOICE], then feedback identifies [SPECIFIC MISCONCEPTION], completion stays unchanged, and I can retry.
-- **AC4:** Given no selection or malformed input, when I submit, then input guidance appears and attempts/completion remain unchanged.
+- **AC1:** Given a fresh session, when I start, then I see the round 1 briefing before any slots can be filled.
+- **AC2:** Given round 1, when I place `interface GigabitEthernet0/1` then `no shutdown` and press Run, then the link shows up, the trace reads "Request delivered to hostB. Reply delivered to hostA.", and an explanation appears.
+- **AC3:** Given round 1, when I place `no shutdown` then `interface GigabitEthernet0/1` and press Run, then feedback says the router rejected `no shutdown` because no interface was selected yet and that the script carried on without stopping, the trace shows the request dropped at r1 because the link to r2 is down, the round stays unsolved, and I can retry.
+- **AC4:** Given any round with an empty slot, when I press Run, then guidance names the empty slot and the run count and completion are unchanged.
+- **AC5:** Given any Run with all slots filled, then each script line is highlighted in order and any state it changed is marked, before the ping trace is shown.
 
 ### US2 · Learn from help and finish the game — P1
 
-As a learner, I want help when stuck and a clear view of my progress.
-
-- **AC5:** A hint first explains the method. Further help can show a worked solution; assistance is recorded without marking the round complete.
-- **AC6:** Each valid submission counts as one attempt until the round is solved. Correct submission completes it once; repeated submission after success has no effect.
-- **AC7:** A level completes after both of its rounds are solved. Next opens the following round or level; the final round opens a session summary.
-- **AC8:** Restart asks for confirmation, then clears the current session and returns to the first briefing. Cancel preserves the session.
+- **AC6:** Each round has one hint, which explains the method without naming a card. Using it is recorded and never marks a round solved.
+- **AC7:** Each Run with all slots filled adds one to the visible run counter until the round is solved. A solving run completes the round once; Run is disabled afterwards.
+- **AC8:** Next opens the following round's briefing; after round 4 it opens the session summary, which shows runs, hint use and the first-run mark for every round.
+- **AC9:** Restart asks for confirmation, then clears the session and returns to the first briefing. Cancel preserves the session.
 
 ### US3 · Play with accessible controls — P1
 
-As a keyboard user, I want to inspect the challenge, choose, submit, get help, and advance without a mouse.
-
-- **AC9:** All core controls have visible focus and accessible names; keyboard interaction reaches every core action.
-- **AC10:** Correct/incorrect feedback includes text, remains available to read, and is announced to assistive technology. Motion can be reduced without losing information.
+- **AC10:** Cards, slots, Run, Hint, Next and Restart have visible focus and accessible names, and every one can be operated from the keyboard.
+- **AC11:** The script log and ping trace are text, stay on screen, and are announced to assistive technology. With reduced motion set, the log and trace text appear immediately and no information is lost.
 
 ## Version-one content
 
-Default: **three levels, two rounds per level, six rounds total**. Use one new example per round and the same core mechanic throughout. Change these counts and AC7 together if you choose a smaller scope.
+Four rounds, one mechanic. The pass condition is always the same: request and reply both delivered. In rounds 3 and 4 the game pings, reloads both routers, then pings again, and the round is solved only if the second ping completes.
 
-| Level | New concept | Prerequisite | Misconception to expose |
-| --- | --- | --- | --- |
-| 1 | [FOUNDATION / LO1] | [STARTING KNOWLEDGE] | [COMMON ERROR] |
-| 2 | [APPLICATION / LO2] | Level 1 | [COMMON ERROR] |
-| 3 | [TRANSFER OR EDGE CASE / LO3] | Level 2 | [COMMON ERROR] |
+| Round | New idea | Starting state | Slots | Tray |
+| --- | --- | --- | --- | --- |
+| 1 | CLI context; a rejected line does not stop the script (LO1) | r1 `Gi0/1` shut down. r2 `Gi0/1` up. Both static routes configured and saved. | 2 config lines on r1 | `interface GigabitEthernet0/1`, `no shutdown`, `interface GigabitEthernet0/0` |
+| 2 | Traffic needs a route in each direction (LO2) | Link up. r1 has its route to 10.20.0.0/24. r2 has none. | 1 device, 1 config line | `r1`, `r2`, `ip route 10.20.0.0 255.255.255.0 192.0.2.2`, `ip route 10.10.0.0 255.255.255.0 192.0.2.1` |
+| 3 | A change that works is not yet saved (LO3) | Link up. r2 complete and saved. r1 has no route; the script adds it. | 1 statement after `send_config_set` on r1 | `conn.save_config()`, `conn.send_command("show running-config")`, `print("done")` |
+| 4 | A call after a loop runs once, on the last router (LO3) | Link up. Neither router has a route; the loop adds each router's route. | 1 statement inside the loop, 1 after it | `conn.save_config()`, `conn.send_command("show running-config")`, `print("done")` |
 
-**Progression:** sequential on first playthrough; retry without penalty. Completion requires a correct submission in every round. Hints remain available. No points, lives, timer, leaderboard, or streak mechanic in v1.
+**Progression:** sequential; retry without penalty. The run counter and first-run mark are the only scoring. No points, lives, timer, leaderboard or streak.
 
-**Session behavior:** progress is held for the current page session; reload starts again. Saving across reloads is a stretch feature and must be specified before it is added.
+**Session behaviour:** progress is held in memory for the page session. Reload starts again.
 
 ## Cases the implementation must satisfy
 
-Write these before generating code. Use real values and independently checked expected results. Include additional cases for every shipped round.
+This is every possible placement: 19 in total. Expected results are worked by hand from the rules above, not taken from the evaluator. For rounds 3 and 4 the first ping completes in every case, so only the second ping is listed.
 
-| Case | Input state | Player action | Expected result | Why / source |
-| --- | --- | --- | --- | --- |
-| Correct | [CONCRETE VALUES] | [ACTION] | [RESULT] | [RULE + REFERENCE] |
-| Plausible mistake | [CONCRETE VALUES] | [ACTION] | [RESULT AND EXPLANATION] | [MISCONCEPTION] |
-| Boundary | [EXACT BOUNDARY VALUES] | [ACTION] | [RESULT] | [RULE + REFERENCE] |
-| Unsupported content | [INVALID OR AMBIGUOUS AUTHOR DATA] | Open round | Visible content error; no grading or progress | Authoring error, not learner failure |
+**Round 1** (slot 1, slot 2):
+
+| # | Placement | Expected result | Rule |
+| --- | --- | --- | --- |
+| 1 | `interface Gi0/1`, `no shutdown` | Link up. Both static routes install. Request and reply delivered. **Solved.** | 1, 2, 3 |
+| 2 | `no shutdown`, `interface Gi0/1` | `no shutdown` rejected; script carries on. Request dropped at r1: link to r2 is down. | 1, 8 |
+| 3 | `interface Gi0/0`, `no shutdown` | No change; `Gi0/0` was already up. Request dropped at r1: link to r2 is down. | 2 |
+| 4 | `no shutdown`, `interface Gi0/0` | `no shutdown` rejected; script carries on. Request dropped at r1: link to r2 is down. | 1, 8 |
+| 5 | `interface Gi0/1`, `interface Gi0/0` | No change; nothing enabled the interface. Request dropped at r1: link to r2 is down. | 1 |
+| 6 | `interface Gi0/0`, `interface Gi0/1` | Same as 5. | 1 |
+
+**Round 2** (device, config line):
+
+| # | Placement | Expected result | Rule |
+| --- | --- | --- | --- |
+| 7 | `r2`, route to 10.10.0.0/24 via 192.0.2.1 | Route installs on r2. Request and reply delivered. **Solved.** | 3, 5 |
+| 8 | `r1`, route to 10.20.0.0/24 via 192.0.2.2 | No change; r1 already had it. Request delivered. Reply dropped at r2: no route to 10.10.0.0/24. | 5 |
+| 9 | `r1`, route to 10.10.0.0/24 via 192.0.2.1 | Rejected: 192.0.2.1 is r1's own address. Request delivered. Reply dropped at r2. | 4, 8 |
+| 10 | `r2`, route to 10.20.0.0/24 via 192.0.2.2 | Rejected: 192.0.2.2 is r2's own address. Request delivered. Reply dropped at r2. | 4, 8 |
+
+**Round 3** (statement):
+
+| # | Placement | Expected result after reload | Rule |
+| --- | --- | --- | --- |
+| 11 | `save_config()` | r1 keeps its route. Request and reply delivered. **Solved.** | 6 |
+| 12 | `send_command("show running-config")` | r1 loses its route. Request dropped at r1. | 6 |
+| 13 | `print("done")` | Same as 12. | 6 |
+
+**Round 4** (inside the loop, after the loop):
+
+| # | Placement | Expected result after reload | Rule |
+| --- | --- | --- | --- |
+| 14 | `save_config()`, `send_command(…)` | Both routers saved. Request and reply delivered. **Solved.** | 6 |
+| 15 | `save_config()`, `print("done")` | Same as 14. **Solved.** | 6 |
+| 16 | `send_command(…)`, `save_config()` | Only r2 saved. r2 keeps its route, r1 loses its route. Request dropped at r1. | 6, 7 |
+| 17 | `print("done")`, `save_config()` | Same as 16. | 6, 7 |
+| 18 | `send_command(…)`, `print("done")` | Neither saved. Request dropped at r1. | 6 |
+| 19 | `print("done")`, `send_command(…)` | Same as 18. | 6 |
+
+**Unsupported content:** a round whose tray cannot fill its slots, or with no solving placement, shows a content error naming the round. It is not graded and gives no progress.
 
 ## Experience direction
 
-- **Visual metaphor:** [WHAT MAKES THE CONCEPT VISIBLE].
-- **One memorable moment:** [A SMALL EFFECT THAT REVEALS CAUSE AND EFFECT].
-- **Always visible:** [VALUES AND LABELS NEEDED TO REASON].
-- **Feedback voice:** patient and specific; explain the observed choice before offering the next step.
-- **Layout:** challenge first, action next, explanation beside or below it. Don't hide technical values behind hover-only interactions.
+- **Visual metaphor:** the two-router diagram is the scoreboard. Links are drawn dark when down and lit when up. Request dots travel left to right, reply dots right to left.
+- **Memorable moments:** in round 2 the request arrives and the reply stops at r2 with a marker on that router. In rounds 3 and 4 the ping works, the routers reload, and the same ping fails.
+- **Code acting on a world:** the highlighted script line and the flashing state row move together, so the player sees which line did what.
+- **Always visible:** every interface address, both state panels, the full script, and the run counter.
+- **Feedback voice:** patient and specific. Say what the router did with the line, then where the traffic stopped, then the rule.
+- **Layout:** diagram on top, script and tray on the left, router state and trace on the right. Nothing is hidden behind hover.
 
 ## Non-goals
 
-No user accounts, multiplayer, backend, live infrastructure access, runtime AI, leaderboard, or level editor. No simulation of [ADJACENT SYSTEM OR PROTOCOL BEHAVIOR]. Visual polish must fit the existing mechanic.
+No free typing, real Python execution, real devices, accounts, backend, runtime AI, leaderboard or level editor. No third router, no alternate paths, and no simulation of the excluded behaviour listed above. Sound and drag-and-drop are stretch features.
 
 ## Open decisions for clarify
 
-- [QUESTION THAT COULD CHANGE A RULE, A LEARNING OUTCOME, OR THE SCOPE].
-- [QUESTION THAT COULD CHANGE WHAT COUNTS AS CORRECT].
-
-Delete this section when resolved, or record the answer beside each question. Don't let unresolved decisions become silent implementation guesses.
+- **Router wording: decided, two captures needed.** Feedback quotes real IOS messages. Both need capturing from an IOS or IOS XE router (lab, CML or a sandbox) before they ship as quotes:
+  - `no shutdown` typed at global configuration level. Expected `% Invalid input detected at '^' marker.`, but some platforms have global commands beginning with `shutdown` and may print `% Incomplete command.` instead. Round 1's feedback depends on which.
+  - `ip route 10.10.0.0 255.255.255.0 192.0.2.1` on the router that owns 192.0.2.1. Expected `%Invalid next hop address (it's this router)`.
+- **Rule check by a second person.** The references above were gathered by the build agent. The workshop constitution asks for someone else to check each rule against them.
 
 ## Release evidence
 
-All required acceptance criteria must have a recorded result. All six rounds and their explanations must be checked against the references. A teammate must complete the core flow using only the keyboard. The README must describe implemented behavior, exact run/test commands, and any remaining limits.
+Every acceptance criterion has a recorded result. All 19 placements above are run in tests and match their hand-written expected results. A teammate completes all four rounds using only the keyboard. The README describes what was built, the exact run and test commands, and the remaining limits.
 
----
-
-## Idea menu · remove before using this file as your specification
-
-| Concept | Playful action | Good first scope | Write down before building |
-| --- | --- | --- | --- |
-| IPv4 routing | Send packets through labeled gates | Choose from an installed forwarding table | Matching rule; default route; no-match behavior; tie assumptions |
-| Subnetting | Fit teams into address blocks | Allocate a few fixed requirements | Address model; reserved addresses; whether /31 and /32 are included |
-| ACLs | Admit or stop packets at a checkpoint | Evaluate one ordered stateless list | Supported fields; matching semantics; default action |
-| DNS | Trace a lookup like a detective | Resolve one name through a staged scenario | Cache state; record types; which actor sends each query |
-| NAT/PAT | Repair a translation ledger | Translate a small fixed set of flows | Direction; mapping model; address/port fields |
-| VLANs | Dispatch frames through labeled doors | Access/trunk decisions on a tiny topology | Vendor assumptions; tagging rules; allowed VLANs |
-| BGP | Compare route cards | A declared subset of one vendor's selection process | Eligible routes; attribute comparison order; excluded tie-breaks |
-| QoS | Dispatch traffic into queues | One explicitly modeled scheduling policy | Queue policy; units; offered load; what happens when capacity is exceeded |
-| Packet analysis | Assemble evidence for a diagnosis | One curated trace and one fault | What the trace proves; what remains unknown |
-
-Choose the action that makes the networking decision enjoyable. Keep the first version small enough to explain, build, and verify in the workshop.
+**If time runs short:** cut round 4 first, then the line-by-line highlight. Do not cut the simulator-computed outcomes, the reset on every Run, the text trace, round 2, or the 19-placement test.
