@@ -23,8 +23,8 @@ game:
   skill_level: "beginner"
   play_minutes: 15           # middle of the README's 10-20 minute target; not measured with a first-time player
   levels: 7
-  card_image: ""             # no image file exists in the repo yet
-  card_image_alt: ""
+  card_image: "assets/card.png"
+  card_image_alt: "Round 1 of Round Trip: a Netmiko script with two blank lines, a four-node network diagram with the ping dropped at router r1, and three code cards beside a Run button."
   repo: "https://github.com/slbyrnes1/round-trip"
   repo_path: ""
   license: "Apache-2.0"
@@ -71,7 +71,7 @@ build:                       # the BUILD environment — what made the game
     input_tokens: 90403347   # main model only: 652 uncached + 1479993 cache-write + 88922702 cache-read
     output_tokens: 582368    # main model only
     cost_note: "Token counts are summed from the harness session transcripts for claude-fable-5-2; helper-model tokens and the billing arrangement are unknown"
-  ai_generated_assets: ["images: none (no image files; the diagram, faces and icons are HTML, CSS and inline SVG written by the build agent)", "audio: none"]
+  ai_generated_assets: ["images: none (the two files in assets/ are screenshots of the running game; the diagram, faces and icons are HTML, CSS and inline SVG written by the build agent)", "audio: none"]
 
 runtime:                     # what someone needs to PLAY the finished game
   kind: "static-web"

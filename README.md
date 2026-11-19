@@ -2,6 +2,8 @@
 
 **Finish the script, run it, and watch whether the ping makes it there and back.**
 
+![Round 1 of Round Trip: a Netmiko script with two blank lines on the left, the hostA–r1–r2–hostB network on the right with the ping dropped at r1, and three configuration-line cards along the bottom beside the Run button.](assets/round-1.png)
+
 Round Trip is a browser game for network engineers who are new to automation. You place code cards into the blanks of a short Netmiko-style script, run it against two simulated routers, and watch a ping travel from hostA to hostB and back. Beside every call the script says what Netmiko does there, and after each Run the log shows what Netmiko actually sent to the router, what the router did with it, where the traffic stopped, and the rule behind it.
 
 The misconception it targets: *a script that ran without crashing has fixed the network.* The game keeps three things apart: what the script sent, what the router holds in its configuration, and what traffic actually does.
