@@ -1,0 +1,1037 @@
+{
+  "schemaVersion": 1,
+  "topology": {
+    "hosts": {
+      "hostA": {
+        "address": "10.10.0.10",
+        "prefixLength": 24,
+        "gateway": "10.10.0.1",
+        "router": "r1"
+      },
+      "hostB": {
+        "address": "10.20.0.10",
+        "prefixLength": 24,
+        "gateway": "10.20.0.1",
+        "router": "r2"
+      }
+    },
+    "routers": {
+      "r1": {
+        "interfaces": {
+          "GigabitEthernet0/0": {
+            "address": "10.10.0.1",
+            "prefixLength": 24,
+            "faces": "hostA"
+          },
+          "GigabitEthernet0/1": {
+            "address": "192.0.2.1",
+            "prefixLength": 30,
+            "faces": "r2"
+          }
+        }
+      },
+      "r2": {
+        "interfaces": {
+          "GigabitEthernet0/0": {
+            "address": "10.20.0.1",
+            "prefixLength": 24,
+            "faces": "hostB"
+          },
+          "GigabitEthernet0/1": {
+            "address": "192.0.2.2",
+            "prefixLength": 30,
+            "faces": "r1"
+          }
+        }
+      }
+    }
+  },
+  "sources": [
+    {
+      "id": "netmiko-base",
+      "title": "Netmiko source, base_connection.py",
+      "url": "https://github.com/ktbyers/netmiko/blob/develop/netmiko/base_connection.py",
+      "section": "send_config_set",
+      "claim": "error_pattern defaults to an empty string; ConfigInvalidException is raised only when a pattern is supplied and matches.",
+      "kind": "library"
+    },
+    {
+      "id": "netmiko-ios",
+      "title": "Netmiko source, cisco/cisco_ios.py",
+      "url": "https://github.com/ktbyers/netmiko/blob/develop/netmiko/cisco/cisco_ios.py",
+      "section": "save_config, session_preparation",
+      "claim": "save_config sends write mem on Cisco IOS. session_preparation sends terminal width 511 and turns off paging.",
+      "kind": "library"
+    },
+    {
+      "id": "netmiko-cisco-base",
+      "title": "Netmiko source, cisco_base_connection.py",
+      "url": "https://github.com/ktbyers/netmiko/blob/develop/netmiko/cisco_base_connection.py",
+      "section": "config_mode, exit_config_mode",
+      "claim": "config_mode sends configure terminal by default and exit_config_mode sends end. send_config_set in base_connection.py calls config_mode first and exit_config_mode last.",
+      "kind": "library"
+    },
+    {
+      "id": "netmiko-api",
+      "title": "Netmiko API documentation, netmiko.base_connection",
+      "url": "https://ktbyers.github.io/netmiko/docs/netmiko/base_connection.html",
+      "section": "BaseConnection",
+      "claim": "The call names ConnectHandler, send_config_set, send_command and save_config.",
+      "kind": "library"
+    },
+    {
+      "id": "cisco-static-9600",
+      "title": "Cisco, IP Routing Configuration Guide, IOS XE 17.17 (Catalyst 9600), Protocol-Independent Features",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9600/software/release/17-17/configuration_guide/rtng/b_1717_rtng_9600_cg/protocol_independent_features.html",
+      "section": "Static unicast routes",
+      "claim": "A static route leaves the routing table when its interface goes down or no valid next hop is found, and stays in the configuration.",
+      "kind": "vendor"
+    },
+    {
+      "id": "cisco-iproute-ref",
+      "title": "Cisco, IOS IP Routing: Protocol-Independent Command Reference, ip route",
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios/iproute_pi/command/reference/iri_book/iri_pi1.html",
+      "section": "ip route",
+      "claim": "A static route is a candidate only if its next hop resolves to a valid output interface.",
+      "kind": "vendor"
+    },
+    {
+      "id": "cisco-cli-errors",
+      "title": "Cisco, Using the Command-Line Interface, Catalyst 9300, IOS XE 17.17",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-17/command_reference/b_1717_9300_cr/using_the_command_line_interface.html",
+      "section": "Common CLI error messages",
+      "claim": "The wording of % Invalid input detected at '^' marker. and % Incomplete command.",
+      "kind": "vendor"
+    },
+    {
+      "id": "cln-46334",
+      "title": "Cisco Learning Network, thread 46334",
+      "url": "https://learningnetwork.cisco.com/thread/46334",
+      "section": "Forum post",
+      "claim": "Community report of %Invalid next hop address (it's this router).",
+      "kind": "community"
+    },
+    {
+      "id": "cisco-route-selection",
+      "title": "Cisco, Configure Route Selection for Routers (Document ID 8651)",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/enhanced-interior-gateway-routing-protocol-eigrp/8651-21.html",
+      "section": "Make Forwarding Decisions",
+      "claim": "The longest prefix match always wins among the routes installed in the routing table.",
+      "kind": "vendor"
+    },
+    {
+      "id": "rfc1812",
+      "title": "IETF, RFC 1812, Requirements for IP Version 4 Routers",
+      "url": "https://www.rfc-editor.org/rfc/rfc1812.txt",
+      "section": "5.2.4.3 Next Hop Address",
+      "claim": "If the set ever becomes empty, the packet is discarded because the destination is unreachable.",
+      "kind": "standard"
+    },
+    {
+      "id": "python-for",
+      "title": "Python Language Reference, 8.3 The for statement",
+      "url": "https://docs.python.org/3/reference/compound_stmts.html#the-for-statement",
+      "section": "8.3 The for statement",
+      "claim": "Names in the target list are not deleted when the loop is finished. A name assigned in the loop body, such as conn, likewise keeps its last value.",
+      "kind": "language"
+    },
+    {
+      "id": "python-nameerror",
+      "title": "Python Library Reference, Built-in Exceptions, NameError",
+      "url": "https://docs.python.org/3/library/exceptions.html#NameError",
+      "section": "exception NameError",
+      "claim": "Raised when a local or global name is not found. An exception that is not handled stops the script.",
+      "kind": "language"
+    }
+  ],
+  "rules": [
+    {
+      "id": 1,
+      "name": "CLI context",
+      "short": "`no shutdown` works only after an `interface` line in the same call.",
+      "text": "`no shutdown` and `shutdown` are accepted only after an `interface …` line in the same send_config_set call. At global configuration level the router rejects them and nothing changes.",
+      "sourceIds": []
+    },
+    {
+      "id": 2,
+      "name": "Link state",
+      "short": "A link is up only when both ends are enabled.",
+      "text": "The r1–r2 link is up only when Gi0/1 is enabled on both routers.",
+      "sourceIds": []
+    },
+    {
+      "id": 3,
+      "name": "Route installation",
+      "short": "A static route is used only while its link is up.",
+      "text": "A static route in the running configuration is installed in the routing table only if its next hop is inside a connected subnet whose link is up. A connected subnet is in the routing table only while its link is up.",
+      "sourceIds": [
+        "cisco-static-9600",
+        "cisco-iproute-ref"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Own address",
+      "short": "A router rejects a route that points at its own address.",
+      "text": "The router rejects a static route whose next hop is one of its own interface addresses.",
+      "sourceIds": [
+        "cln-46334"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Forwarding",
+      "short": "No matching route means the packet is dropped. The reply needs a route too.",
+      "text": "Each router forwards using the route in its routing table that contains the destination. With no matching route the packet is dropped at that router. The reply is a separate packet and is forwarded by the same rule.",
+      "sourceIds": [
+        "cisco-route-selection",
+        "rfc1812"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Persistence",
+      "short": "Only saved configuration survives a reload.",
+      "text": "save_config() copies the running configuration to the startup configuration. A reload replaces the running configuration with the startup configuration.",
+      "sourceIds": [
+        "netmiko-ios"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Loop variables",
+      "short": "After a loop, `conn` is the last router only.",
+      "text": "After a for loop ends, conn refers to the last connection only, so a call placed after the loop acts on the last router alone.",
+      "sourceIds": [
+        "python-for"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Silent rejection",
+      "short": "A rejected line does not stop `send_config_set`.",
+      "text": "When the router rejects a configuration line, send_config_set records the router's message and carries on. The script does not stop.",
+      "sourceIds": [
+        "netmiko-base"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Script errors",
+      "short": "Using `conn` before connecting stops the script.",
+      "text": "A call that uses conn before ConnectHandler has run fails with a NameError: the name does not exist yet. Python stops the script at that line and nothing after it runs. A rejected configuration line is different: it does not stop the script.",
+      "sourceIds": [
+        "python-nameerror"
+      ]
+    }
+  ],
+  "callNotes": {
+    "connect": "SSH login → conn",
+    "config": "configure terminal → lines → end; never stops on a reject",
+    "save": "write mem: running → startup",
+    "show": "returns the output; changes nothing",
+    "print": "plain Python; nothing sent",
+    "for": "once per router; conn stays the last one"
+  },
+  "messages": {
+    "connected": {
+      "short": "SSH session to {router} opened",
+      "text": "Netmiko logged in to {router} over SSH and prepared the session (it sets `terminal width 511` and turns off paging).",
+      "ruleIds": []
+    },
+    "interface-selected": {
+      "short": "ok: now inside {interface}",
+      "text": "{router} accepted `{line}`. Later lines in this call now apply to {interface}.",
+      "ruleIds": [
+        1
+      ]
+    },
+    "interface-enabled": {
+      "short": "ok: {interface} enabled",
+      "text": "{router} accepted `{line}` and enabled {interface}.",
+      "ruleIds": [
+        1,
+        2
+      ]
+    },
+    "interface-disabled": {
+      "short": "ok: {interface} shut down",
+      "text": "{router} accepted `{line}` and shut down {interface}.",
+      "ruleIds": [
+        1,
+        2
+      ]
+    },
+    "interface-unchanged": {
+      "short": "ok, no change: already {state}",
+      "text": "{router} accepted `{line}`, and nothing changed: {interface} was already {state}.",
+      "ruleIds": [
+        1
+      ]
+    },
+    "no-interface-context": {
+      "short": "rejected: no interface selected. Script carries on",
+      "text": "{router} rejected `{line}` because no interface was selected yet. The script carried on without stopping.",
+      "ruleIds": [
+        1,
+        8
+      ],
+      "quote": "ios-invalid-input"
+    },
+    "route-added": {
+      "short": "ok: route added",
+      "text": "{router} accepted `{line}` and added the route to its running configuration.",
+      "ruleIds": [
+        3
+      ]
+    },
+    "route-already-present": {
+      "short": "ok, no change: route already there",
+      "text": "{router} already had this route, so nothing changed.",
+      "ruleIds": [
+        3
+      ]
+    },
+    "next-hop-is-own-address": {
+      "short": "rejected: {nextHop} is {router}'s own address. Script carries on",
+      "text": "{router} rejected `{line}` because {nextHop} is one of its own addresses. The script carried on without stopping.",
+      "ruleIds": [
+        4,
+        8
+      ],
+      "quote": "ios-own-next-hop"
+    },
+    "config-saved": {
+      "short": "ok: running config saved as startup config",
+      "text": "{router} saved its running configuration as its startup configuration (`write mem`).",
+      "ruleIds": [
+        6
+      ]
+    },
+    "config-already-saved": {
+      "short": "ok, nothing new to save",
+      "text": "{router} had nothing new to save: its running and startup configurations already matched.",
+      "ruleIds": [
+        6
+      ]
+    },
+    "show-reads-only": {
+      "short": "output returned; nothing changed",
+      "text": "{router} returned its configuration as text. Reading it changes nothing.",
+      "ruleIds": []
+    },
+    "print-does-nothing": {
+      "short": "printed on your screen; nothing sent to a router",
+      "text": "`print` wrote a line on your own screen. Nothing was sent to any router.",
+      "ruleIds": []
+    },
+    "after-loop-last-connection": {
+      "short": "after the loop, conn is still {router}",
+      "text": "This line is after the loop, so `conn` is still the session to {router}, the last router the loop visited.",
+      "ruleIds": [
+        7
+      ]
+    },
+    "conn-not-defined": {
+      "short": "NameError: conn does not exist yet. Script stopped",
+      "text": "Python stopped the script here with a NameError: this line uses `conn`, but no `ConnectHandler(...)` has run yet, so `conn` does not exist. Nothing was sent to any router, and no later line ran.",
+      "ruleIds": [
+        9
+      ]
+    },
+    "drop-link-down": {
+      "short": "route to {destination} not installed: link to {peer} is down",
+      "text": "{router} dropped the packet. Its route to {destination} is in the configuration but not in the routing table, because the link to {peer} is down.",
+      "ruleIds": [
+        2,
+        3
+      ]
+    },
+    "drop-no-route": {
+      "short": "no route to {destination}",
+      "text": "{router} dropped the packet. It has no route to {destination}.",
+      "ruleIds": [
+        5
+      ]
+    },
+    "drop-route-lost-on-reload": {
+      "short": "route to {destination} was not saved; the reload removed it",
+      "text": "{router} dropped the packet. Its route to {destination} was never saved on {router}, so the reload removed it.",
+      "ruleIds": [
+        5,
+        6
+      ]
+    }
+  },
+  "routerMessages": {
+    "ios-invalid-input": {
+      "text": "% Invalid input detected at '^' marker.",
+      "captured": false
+    },
+    "ios-own-next-hop": {
+      "text": "%Invalid next hop address (it's this router)",
+      "captured": false
+    }
+  },
+  "rounds": [
+    {
+      "id": "link-up",
+      "title": "Bring the link up",
+      "ticket": {
+        "body": "hostB won't answer my pings. I didn't touch anything, I promise.",
+        "thanks": "Pong! I can hear hostB again."
+      },
+      "learningOutcome": "LO1",
+      "briefing": {
+        "idea": "`send_config_set` doesn't stop on a rejected line, so the order of the lines matters.",
+        "terms": [
+          "Each line needs the right context, and `send_config_set` does not stop when the router rejects one. A script that finishes cleanly may have changed nothing.",
+          "A router reads configuration lines one at a time, and each line only makes sense in the right context. When a line is rejected, send_config_set does not stop: it records the router's message and sends the next line. A script that finishes without an error has not necessarily changed anything.",
+          "interface <name>: selects an interface. Lines after it in the same call apply to that interface.",
+          "State panel: for each router it shows Gi0/1 as up, administratively down (shut on this router) or down (the other end is shut), then the static routes in the running configuration, then the routing table, and a saved or unsaved changes badge."
+        ],
+        "workedExample": "Suppose a script sends [\"shutdown\", \"interface GigabitEthernet0/0\"] to a router. The router rejects `shutdown`, because no interface has been selected yet. The script carries on and sends the interface line, which is accepted. The script ends normally and the interface is still up. With the two lines the other way round, the interface would be shut.",
+        "limits": "This is a simulator, not a real router. The rule that a router rejects `no shutdown` at global configuration level has no documentary source yet. A real router prints an error message when it rejects a line; here the message is paraphrased until it has been captured from a real device.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-cisco-base",
+          "netmiko-api"
+        ]
+      },
+      "hint": "The router reads the list one line at a time, starting at global configuration level. A command that acts on an interface only works once the router has been told which interface you mean.",
+      "reloadCheck": false,
+      "start": {
+        "r1": {
+          "shutdown": [
+            "GigabitEthernet0/1"
+          ],
+          "routes": [
+            "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+          ]
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": [
+            "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+          ]
+        }
+      },
+      "script": [
+        {
+          "op": "connect",
+          "device": "r1"
+        },
+        {
+          "op": "config",
+          "lines": [
+            {
+              "slot": "line-1",
+              "type": "configLine",
+              "label": "First configuration line"
+            },
+            {
+              "slot": "line-2",
+              "type": "configLine",
+              "label": "Second configuration line"
+            }
+          ]
+        }
+      ],
+      "tray": [
+        {
+          "id": "int-g01",
+          "type": "configLine",
+          "value": "interface GigabitEthernet0/1"
+        },
+        {
+          "id": "no-shut",
+          "type": "configLine",
+          "value": "no shutdown"
+        },
+        {
+          "id": "int-g00",
+          "type": "configLine",
+          "value": "interface GigabitEthernet0/0"
+        }
+      ]
+    },
+    {
+      "id": "other-end",
+      "title": "The other end",
+      "ticket": {
+        "body": "hostB has gone quiet again. Same thing as last time?",
+        "thanks": "Back again! It was the far end this time."
+      },
+      "learningOutcome": "LO1",
+      "briefing": {
+        "idea": "A script changes only the router it connects to. Which end is shut?",
+        "terms": [
+          "A script only changes the router it connects to. `down` means the other end is shut; `administratively down` means this end is.",
+          "The two routers show the same broken link differently. The router whose own interface is shut reports `administratively down`. The router at the other end reports plain `down`: its own interface is enabled, but the link has no partner.",
+          "`ConnectHandler(**r1)` opens a session to r1, and every line `send_config_set` sends on that session goes to r1 only.",
+          "State card: read the pill beside each router's name before choosing where to connect."
+        ],
+        "workedExample": "Suppose r1's side of the link is shut and a script connects to r2 and sends `interface GigabitEthernet0/1` then `no shutdown`. r2 accepts both lines and nothing changes, because r2's side was never shut. The link stays down until the same two lines are sent to r1.",
+        "limits": "Only the two routers' sides of one link are modelled. The rule that the link is up only when both sides are enabled has no documentary source yet. Interface status on a real router has more states than the three shown here.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-cisco-base"
+        ]
+      },
+      "hint": "Compare the two state cards. One side reads down and the other reads administratively down. The line that brings an interface back only helps on the router where it was shut.",
+      "reloadCheck": false,
+      "start": {
+        "r1": {
+          "shutdown": [],
+          "routes": [
+            "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+          ]
+        },
+        "r2": {
+          "shutdown": [
+            "GigabitEthernet0/1"
+          ],
+          "routes": [
+            "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+          ]
+        }
+      },
+      "script": [
+        {
+          "op": "connect",
+          "device": {
+            "slot": "device",
+            "type": "device",
+            "label": "Router to configure"
+          }
+        },
+        {
+          "op": "config",
+          "lines": [
+            {
+              "slot": "line-1",
+              "type": "configLine",
+              "label": "First configuration line"
+            },
+            {
+              "slot": "line-2",
+              "type": "configLine",
+              "label": "Second configuration line"
+            }
+          ]
+        }
+      ],
+      "tray": [
+        {
+          "id": "r1",
+          "type": "device",
+          "value": "r1"
+        },
+        {
+          "id": "r2",
+          "type": "device",
+          "value": "r2"
+        },
+        {
+          "id": "int-g01",
+          "type": "configLine",
+          "value": "interface GigabitEthernet0/1"
+        },
+        {
+          "id": "no-shut",
+          "type": "configLine",
+          "value": "no shutdown"
+        },
+        {
+          "id": "int-g00",
+          "type": "configLine",
+          "value": "interface GigabitEthernet0/0"
+        }
+      ]
+    },
+    {
+      "id": "two-way",
+      "title": "A route in each direction",
+      "ticket": {
+        "body": "My pings reach hostB, I think. Nothing ever comes back.",
+        "thanks": "A reply! It came all the way back."
+      },
+      "learningOutcome": "LO2",
+      "briefing": {
+        "idea": "A ping is two packets. The reply needs its own route back.",
+        "terms": [
+          "A ping is two packets. The reply needs its own route back, on the router that has to forward it.",
+          "A ping is two packets. The request travels from hostA to hostB, and the reply is a separate packet travelling from hostB to hostA. Each router forwards each packet using its own routing table, so traffic needs a route in each direction.",
+          "ip route <network> <mask> <next-hop>: adds a static route. Packets for that network are handed to the next-hop address.",
+          "Routing table: the routes a router actually uses to forward. A router with no row containing the destination drops the packet.",
+          "State panel: compare the two routers' routing tables. Each needs a row for the network on the far side."
+        ],
+        "workedExample": "Turn the picture around. Suppose hostB pings hostA, r2 has a route to 10.10.0.0/24 and r1 has no route to 10.20.0.0/24. The request crosses r2 and r1 and reaches hostA. The reply, addressed to hostB, is dropped at r1, because r1 has no row for 10.20.0.0/24.",
+        "limits": "There is no default route and no dynamic routing in this model. Static routes install the moment they are configured; a real router can take up to about a minute. The router's message for a route that points at its own address comes from a forum post, not Cisco documentation, and is paraphrased here.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-cisco-base",
+          "cisco-iproute-ref",
+          "cisco-route-selection",
+          "rfc1812"
+        ]
+      },
+      "hint": "Follow the reply, not only the request. Which router has to forward it first, and does that router's routing table have a row for where the reply is going?",
+      "reloadCheck": false,
+      "start": {
+        "r1": {
+          "shutdown": [],
+          "routes": [
+            "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+          ]
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": []
+        }
+      },
+      "script": [
+        {
+          "op": "connect",
+          "device": {
+            "slot": "device",
+            "type": "device",
+            "label": "Router to configure"
+          }
+        },
+        {
+          "op": "config",
+          "lines": [
+            {
+              "slot": "route",
+              "type": "configLine",
+              "label": "Route to add"
+            }
+          ]
+        }
+      ],
+      "tray": [
+        {
+          "id": "r1",
+          "type": "device",
+          "value": "r1"
+        },
+        {
+          "id": "r2",
+          "type": "device",
+          "value": "r2"
+        },
+        {
+          "id": "route-to-b",
+          "type": "configLine",
+          "value": "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+        },
+        {
+          "id": "route-to-a",
+          "type": "configLine",
+          "value": "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+        }
+      ]
+    },
+    {
+      "id": "save",
+      "title": "Working is not the same as saved",
+      "ticket": {
+        "body": "My route gets fixed, the routers reboot, and it's gone again.",
+        "thanks": "Rebooted, and I can still reach hostB!"
+      },
+      "learningOutcome": "LO3",
+      "briefing": {
+        "idea": "A change that works now is gone after a reload, unless it was saved.",
+        "terms": [
+          "A change that works now is gone after a reload, unless it was saved.",
+          "A router keeps two configurations. Changes go into the running configuration and take effect at once. Only the startup configuration survives a reload. A change that works now is lost at the next reload unless it has been saved.",
+          "State panel: the badge reads saved when the running and startup configurations match, and unsaved changes when they do not. In this round each Run pings, reloads both routers, then pings again. Only the second ping decides the round."
+        ],
+        "workedExample": "Suppose a script shuts an interface and ends without saving. The interface goes down at once and stays down all day. That night the router reloads, loads its startup configuration, and the interface is up again, because the startup configuration never contained the change.",
+        "limits": "The reload is instant here and reloads both routers together. On Cisco IOS, save_config sends `write mem`. Enable and privilege modes, timeouts and closing the session are not simulated.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-ios",
+          "netmiko-cisco-base"
+        ]
+      },
+      "hint": "A reload throws away the running configuration and loads the startup configuration. Which call changes the startup configuration?",
+      "reloadCheck": true,
+      "start": {
+        "r1": {
+          "shutdown": [],
+          "routes": []
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": [
+            "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+          ]
+        }
+      },
+      "script": [
+        {
+          "op": "connect",
+          "device": "r1"
+        },
+        {
+          "op": "config",
+          "lines": [
+            "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+          ]
+        },
+        {
+          "slot": "after-config",
+          "type": "statement",
+          "label": "Statement after the configuration"
+        }
+      ],
+      "tray": [
+        {
+          "id": "save",
+          "type": "statement",
+          "value": {
+            "op": "save"
+          }
+        },
+        {
+          "id": "show",
+          "type": "statement",
+          "value": {
+            "op": "show",
+            "command": "show running-config"
+          }
+        },
+        {
+          "id": "print",
+          "type": "statement",
+          "value": {
+            "op": "print",
+            "text": "done"
+          }
+        }
+      ]
+    },
+    {
+      "id": "loop-save",
+      "title": "Save on every router",
+      "ticket": {
+        "body": "New script, fancy loop. After a reboot I'm cut off again.",
+        "thanks": "Both routers remembered. Reboot away!"
+      },
+      "learningOutcome": "LO3",
+      "briefing": {
+        "idea": "Inside the loop: once per router. After the loop: once, on the last router.",
+        "terms": [
+          "A line inside the loop runs once per router. A line after the loop runs once, on the last router.",
+          "A loop runs its indented lines once for each router. A line placed after the loop runs once only, and by then conn is whatever it was on the last pass: the session to the last router.",
+          "Inside the loop: indented under the for line. Runs once per router.",
+          "After the loop: not indented. Runs once, when the loop has finished.",
+          "State panel: watch the saved badge on each router separately. In this round each Run pings, reloads both routers, then pings again."
+        ],
+        "workedExample": "Suppose a loop opens a session to r1 and then to r2, and a line after the loop calls conn.send_command(\"show clock\"). The clock is read once, from r2 only. r1 is never asked, because conn stopped pointing at r1 when the loop moved on.",
+        "limits": "The script here does not close its sessions; a real script would. The reload is instant and reloads both routers together. Authentication failures and timeouts are not simulated.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-ios",
+          "netmiko-cisco-base",
+          "python-for"
+        ]
+      },
+      "hint": "Count how many times each line of the script runs, and on which router. A line inside the loop runs once for every router. A line after the loop runs once.",
+      "reloadCheck": true,
+      "start": {
+        "r1": {
+          "shutdown": [],
+          "routes": []
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": []
+        }
+      },
+      "script": [
+        {
+          "op": "for",
+          "devices": [
+            "r1",
+            "r2"
+          ],
+          "body": [
+            {
+              "op": "connect"
+            },
+            {
+              "op": "config",
+              "linesByDevice": {
+                "r1": [
+                  "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+                ],
+                "r2": [
+                  "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+                ]
+              }
+            },
+            {
+              "slot": "in-loop",
+              "type": "statement",
+              "label": "Statement inside the loop"
+            }
+          ]
+        },
+        {
+          "slot": "after-loop",
+          "type": "statement",
+          "label": "Statement after the loop"
+        }
+      ],
+      "tray": [
+        {
+          "id": "save",
+          "type": "statement",
+          "value": {
+            "op": "save"
+          }
+        },
+        {
+          "id": "show",
+          "type": "statement",
+          "value": {
+            "op": "show",
+            "command": "show running-config"
+          }
+        },
+        {
+          "id": "print",
+          "type": "statement",
+          "value": {
+            "op": "print",
+            "text": "done"
+          }
+        }
+      ]
+    },
+    {
+      "id": "call-order",
+      "title": "Calls in order",
+      "ticket": {
+        "body": "My script fell on the floor. Can you put its lines back in order?",
+        "thanks": "Connect, configure, save. Got it!"
+      },
+      "learningOutcome": "LO4",
+      "briefing": {
+        "idea": "Connect, then configure, then save. Use `conn` before connecting and Python stops.",
+        "terms": [
+          "A script is a sequence: connect, then configure, then save. Use `conn` before connecting and Python stops the script on the spot.",
+          "Python runs a script from the top, one line at a time. A line can only use names that an earlier line has already created. `conn` is created by `conn = ConnectHandler(...)`, so every call on `conn` has to come after it.",
+          "Two different kinds of failure: when the router rejects a configuration line, `send_config_set` carries on. When Python itself cannot run a line, the script stops there and the lines below it never run.",
+          "`save_config()` saves the configuration as it is at that moment. A change made after the save is not in it.",
+          "In this round each Run pings, reloads both routers, then pings again. Only the second ping decides the round."
+        ],
+        "workedExample": "Suppose the first line of a script is `conn.send_command(\"show clock\")` and the line that opens the session comes second. Python stops on line one with a NameError, because `conn` does not exist yet. The session is never opened and the router never hears from the script at all.",
+        "limits": "Only one kind of script error is modelled: using `conn` before connecting. A real `ConnectHandler` can also fail by itself, with a timeout or a refused login, and a real script would close its session with `conn.disconnect()` when it has finished.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-cisco-base",
+          "netmiko-ios",
+          "python-nameerror"
+        ]
+      },
+      "hint": "Read the script from the top as Python would. Each line can only use what the lines above it have already made. And saving copies the configuration as it stands at that moment, no later.",
+      "reloadCheck": true,
+      "start": {
+        "r1": {
+          "shutdown": [],
+          "routes": []
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": [
+            "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+          ]
+        }
+      },
+      "script": [
+        {
+          "slot": "line-1",
+          "type": "statement",
+          "label": "First line"
+        },
+        {
+          "slot": "line-2",
+          "type": "statement",
+          "label": "Second line"
+        },
+        {
+          "slot": "line-3",
+          "type": "statement",
+          "label": "Third line"
+        }
+      ],
+      "tray": [
+        {
+          "id": "connect",
+          "type": "statement",
+          "value": {
+            "op": "connect",
+            "device": "r1"
+          }
+        },
+        {
+          "id": "config",
+          "type": "statement",
+          "value": {
+            "op": "config",
+            "lines": [
+              "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+            ]
+          }
+        },
+        {
+          "id": "save",
+          "type": "statement",
+          "value": {
+            "op": "save"
+          }
+        }
+      ]
+    },
+    {
+      "id": "whole-script",
+      "title": "The whole script",
+      "ticket": {
+        "body": "Two fresh routers and a reboot tonight. Could you write the whole thing?",
+        "thanks": "It survived the reboot, and you wrote all of it. Go write your own!"
+      },
+      "learningOutcome": "LO4",
+      "briefing": {
+        "idea": "For each router: connect, bring the link up, add its route, save.",
+        "terms": [
+          "Everything at once: for each router, connect, bring the link up, add its route, and save before the loop moves on.",
+          "This is a whole Netmiko script. The loop body is yours to write: every line of it is a blank, and so is the line after the loop.",
+          "What one router needs, in order: a session (`ConnectHandler`), its changes (`send_config_set`, twice here: once for the link and once for the route), and a save (`save_config`) once the changes are in.",
+          "Sending the link lines to a router whose side is already up does no harm: the router accepts them and nothing changes. That is why one loop body can serve both routers.",
+          "Six cards, five blanks: one card is left over. In this round each Run pings, reloads both routers, then pings again. Only the second ping decides the round."
+        ],
+        "workedExample": "Suppose three switches each need a new hostname. A script loops over the three: inside the loop it opens a session to the switch, sends the hostname line with `send_config_set`, and saves. Each pass does all three steps for one switch before the loop moves to the next. A save placed after the loop would reach only the third switch.",
+        "limits": "A real script would also need a username and password for each router, would check what `send_config_set` returned for rejected lines, and would close each session with `conn.disconnect()`. Logins, timeouts and reading the output are not simulated here.",
+        "sourceIds": [
+          "netmiko-base",
+          "netmiko-cisco-base",
+          "netmiko-ios",
+          "python-for",
+          "python-nameerror"
+        ]
+      },
+      "hint": "Work out what one router needs, in order, and put all of it inside the loop so the other router gets the same. Two of the cards change nothing on any router: one of them can sit after the loop, and one is left over.",
+      "reloadCheck": true,
+      "start": {
+        "r1": {
+          "shutdown": [
+            "GigabitEthernet0/1"
+          ],
+          "routes": []
+        },
+        "r2": {
+          "shutdown": [],
+          "routes": []
+        }
+      },
+      "script": [
+        {
+          "op": "for",
+          "devices": [
+            "r1",
+            "r2"
+          ],
+          "body": [
+            {
+              "slot": "loop-1",
+              "type": "statement",
+              "label": "First line inside the loop"
+            },
+            {
+              "slot": "loop-2",
+              "type": "statement",
+              "label": "Second line inside the loop"
+            },
+            {
+              "slot": "loop-3",
+              "type": "statement",
+              "label": "Third line inside the loop"
+            },
+            {
+              "slot": "loop-4",
+              "type": "statement",
+              "label": "Fourth line inside the loop"
+            }
+          ]
+        },
+        {
+          "slot": "after-loop",
+          "type": "statement",
+          "label": "Line after the loop"
+        }
+      ],
+      "tray": [
+        {
+          "id": "connect",
+          "type": "statement",
+          "value": {
+            "op": "connect"
+          }
+        },
+        {
+          "id": "linkup",
+          "type": "statement",
+          "value": {
+            "op": "config",
+            "lines": [
+              "interface GigabitEthernet0/1",
+              "no shutdown"
+            ]
+          }
+        },
+        {
+          "id": "routes",
+          "type": "statement",
+          "value": {
+            "op": "config",
+            "linesByDevice": {
+              "r1": [
+                "ip route 10.20.0.0 255.255.255.0 192.0.2.2"
+              ],
+              "r2": [
+                "ip route 10.10.0.0 255.255.255.0 192.0.2.1"
+              ]
+            }
+          }
+        },
+        {
+          "id": "save",
+          "type": "statement",
+          "value": {
+            "op": "save"
+          }
+        },
+        {
+          "id": "show",
+          "type": "statement",
+          "value": {
+            "op": "show",
+            "command": "show running-config"
+          }
+        },
+        {
+          "id": "print",
+          "type": "statement",
+          "value": {
+            "op": "print",
+            "text": "done"
+          }
+        }
+      ]
+    }
+  ]
+}

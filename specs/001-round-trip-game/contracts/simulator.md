@@ -39,7 +39,12 @@ request and reply from that state, using the same routing and forwarding code as
    - `save` copies running to startup on `conn`'s router (rule 6).
    - `show` and `print` change nothing.
    - `for` runs its body once per device. It does not reset `conn` afterwards, so a statement
-     after the loop acts on the last router (rule 7).
+     after the loop acts on the last router (rule 7). The loop variable keeps its last value too,
+     so a `connect` with no device placed after the loop connects to the last router.
+   - A `config`, `save` or `show` reached while `conn` has never been set stops the script
+     (rule 9). `print` does not use `conn` and never stops it.
+   - A statement slot is filled with its card's statement, which may be any of `connect`,
+     `config`, `save`, `show` or `print`.
 4. **Ping.** Derive each router's routing table, then forward the request from hostA to hostB and,
    if it arrives, the reply from hostB to hostA.
    - The r1–r2 link is up only if `Gi0/1` is enabled on both routers (rule 2).
@@ -57,10 +62,13 @@ request and reply from that state, using the same routing and forwarding code as
 ```text
 {
   status: "solved" | "unsolved" | "invalid-input",
+  crashed: boolean,                // rule 9: Python stopped the script before its last line
   emptySlots: [slotId],            // invalid-input only
   steps: [Step],                   // one per executed script line or config line, in order
+                                   // (plus an `after-loop-last-connection` note where rule 7 applies)
   pings: [Ping],                   // one, or two when the round has a reload check
-  reload: { lost: { r1: [configLine], r2: [configLine] } } | null,
+  reload: { lost: { r1: [configLine], r2: [configLine] },          // unsaved routes the reload removed
+            reverted: { r1: [{ interface, state }], r2: […] } } | null,  // unsaved shutdown / no shutdown it undid
   finalState: { r1: RouterView, r2: RouterView }
 }
 ```
@@ -71,8 +79,10 @@ Step {
   iteration: routerId | null,      // which pass of a for loop
   router: routerId,                // the router conn refers to
   line: string | null,             // the config line, for steps inside send_config_set
-  outcome: "applied" | "no-change" | "rejected" | "read-only",
+  sent: [string],                  // what Netmiko wrote to the router for this step, each with its prompt
+  outcome: "applied" | "no-change" | "rejected" | "read-only" | "crashed",
   reason: ReasonCode,
+  values: { … },                   // what the message's placeholders need: router, line, interface, …
   changed: [ { router, row } ],    // row: "interface" | "runningRoutes" | "routingTable" | "saved"
   state: { r1: RouterView, r2: RouterView }   // state after this step
 }
@@ -88,7 +98,8 @@ Leg {
   hops: [Hop],                     // nodes reached, in order
   droppedAt: routerId | null,
   reason: ReasonCode | null,
-  destination: "10.20.0.0/24" | "10.10.0.0/24"
+  destination: "10.20.0.0/24" | "10.10.0.0/24",
+  values: { … }                    // for a drop: router, destination, peer
 }
 
 Hop {
@@ -107,6 +118,21 @@ RouterView {
 
 `changed` lists rows on either router: enabling `Gi0/1` on r1 changes r2's interface row and
 routing table too.
+
+## What Netmiko sends (`Step.sent`)
+
+Taken from Netmiko's source for `cisco_ios` (see the `netmiko-base`, `netmiko-cisco-base` and
+`netmiko-ios` sources in the content file). Prompts use the router's name.
+
+| Step | `sent` |
+| --- | --- |
+| `connect` | nothing listed; the log sentence says Netmiko logs in over SSH and prepares the session |
+| first line of a `send_config_set` call | `r1# configure terminal`, then the line at `r1(config)#` |
+| any config line | the line, at `r1(config)#`, or at `r1(config-if)#` once an `interface` line has been accepted in this call |
+| last line of the call | the line, then `end` at the prompt the call finished in |
+| `save` | `r1# write mem` |
+| `show` | `r1# ` followed by the command |
+| `print` and the after-loop note | nothing |
 
 ## Reason codes
 
@@ -128,6 +154,8 @@ numbers. The simulator supplies only the code and the values.
 | `config-already-saved` | no-change | `save` when they were equal |
 | `show-reads-only` | read-only | `show` |
 | `print-does-nothing` | read-only | `print` |
+| `conn-not-defined` | crashed | Rule 9. A `config`, `save` or `show` runs before any `connect` has. It is the last step: execution stops, nothing is sent, and the pings (and the reload, where the round has one) run against the state the script left |
+| `after-loop-last-connection` | read-only | Added in implementation. An extra step, before a `config`, `save` or `show` that runs after a `for` loop has ended and uses the loop's leftover `conn` (rule 7). It changes nothing; it lets feedback cite rule 7 |
 | `drop-link-down` | (leg) | A route to the destination is configured but not installed because the link is down |
 | `drop-no-route` | (leg) | No route to the destination is configured on this router |
 | `drop-route-lost-on-reload` | (leg) | As `drop-no-route`, in the after-reload ping, where the route was in `reload.lost` |

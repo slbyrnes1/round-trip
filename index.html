@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Round Trip</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hud">
+    <h1>
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M6 12h17l-4-4M26 20H9l4 4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Round Trip
+    </h1>
+    <ol id="track" class="track" aria-label="Rounds"></ol>
+    <button id="btn-restart" type="button" class="quiet">Restart</button>
+  </header>
+
+  <main id="view-loading">
+    <p id="loading-text">Loading the rounds…</p>
+  </main>
+  <script>
+    // If a script fails before the game starts, say so. Without this the page sits on "Loading…"
+    // with the reason only in the console. The usual cause is the browser mixing old cached files
+    // with new ones.
+    addEventListener("error", (e) => {
+      const el = document.getElementById("loading-text");
+      if (!el || document.getElementById("view-loading").hidden) return;
+      el.innerHTML = "<strong>The game could not start.</strong> Your browser is probably holding old copies of some of its files. " +
+        "Reload without the cache: <strong>Cmd+Shift+R</strong> on a Mac, <strong>Ctrl+Shift+R</strong> elsewhere. " +
+        "If that does not help, this is the error:<br><code></code>";
+      el.querySelector("code").textContent = e.message || "a file failed to load";
+    });
+  </script>
+
+  <main id="view-error" hidden>
+    <h2 id="error-title" tabindex="-1">Content error</h2>
+    <p>The game's round content is not valid, so nothing can be played or graded. Fix the items below in <code>data/rounds.json</code>.</p>
+    <ul id="error-list"></ul>
+  </main>
+
+  <!-- The play screen is one board that fits the window: the ticket, the script beside the network,
+       and the hand of cards along the bottom. The order here is the Tab order (cards, blanks, Run…);
+       CSS places each part. -->
+  <main id="view-round" hidden>
+    <section id="round-intro" class="ticket" aria-labelledby="round-title">
+      <div id="ticket-face" class="avatar" aria-hidden="true"></div>
+      <div class="ticket-main">
+        <div class="ticket-head">
+          <span id="ticket-tag" class="ticket-tag"></span>
+          <h2 id="round-title" tabindex="-1"></h2>
+          <span id="ticket-status" class="stamp"></span>
+        </div>
+        <p id="ticket-text" class="bubble"></p>
+        <p class="tip">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21h6M10 17h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.4 1 2.5h6c0-1.1.3-1.8 1-2.5A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="round-idea"></span>
+        </p>
+        <details id="about">
+          <summary>About this round</summary>
+          <div id="about-body"></div>
+        </details>
+      </div>
+      <div id="goal" class="goal" role="group" aria-label="Goal">
+        <span class="goal-label">Goal</span>
+        <span id="lamp-request" class="lamp"></span>
+        <span id="lamp-reply" class="lamp"></span>
+      </div>
+    </section>
+
+    <section class="hand-cards" aria-labelledby="tray-title">
+      <div class="hand-head">
+        <h2 id="tray-title">Your cards</h2>
+        <ol id="steps" class="steps" aria-label="How to play">
+          <li data-step="1"><span class="n">1</span> Pick a card</li>
+          <li data-step="2"><span class="n">2</span> Put it in a blank</li>
+          <li data-step="3"><span class="n">3</span> Run</li>
+        </ol>
+      </div>
+      <div id="tray"></div>
+    </section>
+
+    <div class="pane pane-script">
+      <section class="script-box" aria-labelledby="script-title">
+        <h2 id="script-title">Script <span class="h-note">fill the blanks</span></h2>
+        <div id="script" class="scroll" role="group" aria-labelledby="script-title"></div>
+      </section>
+      <!-- The terminal: what Netmiko sent, typed out as the script runs. Open by default. -->
+      <details class="fold terminal" open>
+        <summary><h2 id="log-title">Script log: what Netmiko sent</h2></summary>
+        <ol id="log" class="scroll" tabindex="0" aria-live="polite" aria-labelledby="log-title"></ol>
+      </details>
+    </div>
+
+    <div class="hand-actions">
+      <div class="actions">
+        <button id="btn-run" type="button" class="primary">Run</button>
+        <button id="btn-skip" type="button" aria-label="Skip to result" hidden>Skip to result</button>
+        <button id="btn-reset" type="button">Reset routers</button>
+        <button id="btn-hint" type="button">Hint</button>
+        <button id="btn-next" type="button" disabled>Next</button>
+        <span id="runs">Runs: 0</span>
+      </div>
+      <p id="status" aria-live="polite"></p>
+      <section id="hint" hidden aria-labelledby="hint-title">
+        <h2 id="hint-title" tabindex="-1">Hint</h2>
+        <p id="hint-text"></p>
+        <button id="btn-hint-close" type="button">Close hint</button>
+      </section>
+    </div>
+
+    <div class="pane pane-net">
+      <section id="diagram-area" aria-label="Network">
+        <div id="diagram"></div>
+        <!-- Each router's state sits under its router. Hover, or the details button, shows more. -->
+        <div id="panels" role="group" aria-label="Router state"></div>
+        <p class="under-diagram">
+          <span class="state-label"></span>
+          <span id="ping-caption" aria-live="polite"></span>
+          <span id="link-text"></span>
+          <span class="motion" id="motion-controls">
+            <button id="btn-pause" type="button">Pause</button>
+            <button id="btn-slow" type="button">Slow</button>
+          </span>
+        </p>
+      </section>
+
+      <!-- Read top to bottom after the terminal: where the traffic stopped, then the rule.
+           Open by default. Only the player collapses or reopens one. -->
+      <div id="output" class="empty scroll" tabindex="0" role="group" aria-label="Where the ping went, and why">
+        <details class="fold" open>
+          <summary><h2 id="trace-title">Ping trace</h2></summary>
+          <div id="trace" aria-live="polite"></div>
+        </details>
+        <details class="fold" open>
+          <summary><h2 id="feedback-title">What happened and why</h2></summary>
+          <div id="feedback" aria-live="polite"></div>
+        </details>
+      </div>
+    </div>
+  </main>
+
+  <main id="view-summary" hidden>
+    <h2 id="summary-title" tabindex="-1">Session summary</h2>
+    <p>Runs and the first-run mark are the only scoring. Hints and retries carry no penalty.</p>
+    <div id="summary-body"></div>
+
+    <section id="takeaway" aria-labelledby="takeaway-title" hidden>
+      <h2 id="takeaway-title">The script you wrote</h2>
+      <p>This is your script from the last round, line for line. The <span class="added-key">highlighted</span> lines are the one thing the game left out: a login. With those, it is a real Netmiko script.</p>
+      <div class="code-head">
+        <button id="btn-copy" type="button">Copy script</button>
+        <span id="copy-status" aria-live="polite"></span>
+      </div>
+      <pre id="takeaway-code" tabindex="0" aria-label="The script you wrote"></pre>
+      <h3>To try it on your own network</h3>
+      <ol id="next-steps">
+        <li><strong>Install Netmiko:</strong> <code>pip install netmiko</code>.</li>
+        <li><strong>Point it at your routers:</strong> change each <code>"host"</code> to the router's address or name (and the matching key in <code>routes</code>), and <code>"username"</code> to yours.</li>
+        <li><strong>Read before you change:</strong> start with a script that only looks, such as <code>print(conn.send_command("show ip route"))</code>.</li>
+        <li><strong>Check what came back:</strong> <code>send_config_set</code> hands back the router's output as text and does not stop on a rejected line. Keep it and print it: <code>output = conn.send_config_set([...])</code>, then <code>print(output)</code>.</li>
+        <li><strong>Close the session</strong> when you are finished with a router: <code>conn.disconnect()</code>.</li>
+        <li><strong>Try it somewhere safe first:</strong> a lab or a sandbox, not a router people depend on.</li>
+      </ol>
+    </section>
+  </main>
+
+  <dialog id="confirm-restart" aria-labelledby="confirm-title">
+    <h2 id="confirm-title" tabindex="-1">Restart the session?</h2>
+    <p>This clears every round's runs, hints and progress and returns to round 1.</p>
+    <div class="actions">
+      <button id="btn-confirm" type="button">Confirm restart</button>
+      <button id="btn-cancel" type="button">Cancel</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="main.js" onerror="dispatchEvent(new ErrorEvent('error', { message: 'main.js could not be loaded' }))"></script>
+</body>
+</html>

@@ -17,8 +17,9 @@ needed.
 | --- | --- | --- |
 | `schemaVersion` | integer, must be `1` | Rejects a file written for a different contract |
 | `topology` | object | The fixed four-node network; see below |
-| `sources` | array of Source | References for the rules and briefings |
+| `sources` | array of Source | References for the rules and round notes |
 | `rules` | array of Rule | The eight rules, with their wording and sources |
+| `callNotes` | object, call → string | One sentence each for `connect`, `config`, `save`, `show`, `print` and `for`, saying what Netmiko or Python does. Shown as a comment beside every such call in the script |
 | `messages` | object, reason code → Message | Feedback wording for each thing the simulator can report |
 | `routerMessages` | object, key → RouterMessage | Real IOS message text, each with a `captured` flag |
 | `rounds` | array of Round, in play order | The four rounds |
@@ -57,7 +58,8 @@ and four rounds, so a level layer would hold nothing.
   "kind": "library" }
 ```
 
-`kind` is `vendor`, `library` or `community`. A rule whose only sources are `community`, or that
+`kind` is `vendor`, `library`, `community`, `standard` (an RFC) or `language` (the Python
+reference). A rule whose only sources are `community`, or that
 has none, is shown as such in the README.
 
 ```json
@@ -65,24 +67,28 @@ has none, is shown as such in the README.
   "sourceIds": ["netmiko-base"] }
 ```
 
-`sourceIds` may be empty (rules 1 and 2 today). Empty means "unsourced", not an error.
+A rule also has `short`: the rule in one line of at most fourteen words, shown in the explanation,
+which opens to `text`. `sourceIds` may be empty (rules 1 and 2 today). Empty means "unsourced", not an error.
 
 ```json
 "messages": {
   "no-interface-context": {
     "text": "The router rejected `{line}` because no interface was selected yet. The script carried on.",
-    "ruleIds": [1, 8], "quote": "invalid-input" }
+    "ruleIds": [1, 8], "quote": "ios-invalid-input" }
 }
 ```
 
 - The key is a reason code from the [simulator contract](simulator.md). Every reason code the
   simulator can emit must have an entry.
+- `short` is the same outcome in twelve words or fewer, with the same placeholders. It is what the
+  transcript and the explanation show; `text` is the full sentence, kept as a tooltip. A rejected
+  line's `short` says it was rejected, why, and that the script carries on.
 - `{name}` placeholders are filled from the step's or trace's evidence.
 - `quote` (optional) names a RouterMessage to show as a quotation.
 
 ```json
 "routerMessages": {
-  "invalid-input": { "text": "% Invalid input detected at '^' marker.", "captured": false }
+  "ios-invalid-input": { "text": "% Invalid input detected at '^' marker.", "captured": false }
 }
 ```
 
@@ -94,9 +100,10 @@ router, feedback uses the paraphrase in `messages` alone (FR-018).
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string, unique | For example `round-2` |
-| `title` | string | Shown in the briefing and the summary |
-| `learningOutcome` | `LO1`, `LO2` or `LO3` | Which outcome the round exercises |
-| `briefing` | object | `idea`, `terms` (array), `workedExample`, `limits`, `sourceIds` (array); all text non-empty |
+| `title` | string | Shown in the round's heading and the summary |
+| `learningOutcome` | `LO1` to `LO4` | Which outcome the round exercises |
+| `ticket` | object | `body` and `thanks`, both non-empty and one sentence each. hostA's complaint, shown while the round is open, and its thanks once solved. The complaint gives the symptom only |
+| `briefing` | object | The round's notes. `idea` is always shown above the script. `terms` (array), `workedExample`, `limits` and `sourceIds` (array) are shown in About this round. All text non-empty. The field keeps its name from when these were a separate page |
 | `hint` | string | The single hint; must not contain any card's text |
 | `reloadCheck` | boolean | `true` in rounds 3 and 4: ping, reload both routers, ping again |
 | `inPlay` | boolean, optional, default `true` | `false` takes the round out of the play sequence and the summary. It is still validated, and its cases are still tested |
@@ -155,8 +162,10 @@ A statement Slot may stand anywhere a Statement can.
 ```
 
 - `id`: unique within the round.
-- `value`: a router id for `device`; a config-line string for `configLine`; a `save`, `show` or
-  `print` Statement for `statement`.
+- `value`: a router id for `device`; a config-line string for `configLine`; a `connect`, `config`,
+  `save`, `show` or `print` Statement for `statement`. A `connect` or `config` on a card holds no
+  slots. A `connect` with no `device`, or a `config` with `linesByDevice`, uses the loop variable
+  and is allowed only in a round where every statement slot is inside or after a `for`.
 - The card's visible text is rendered from `value`, the same way the script is.
 
 ### Config-line grammar
@@ -215,15 +224,17 @@ and no card appears twice.
 
 ## Validation
 
-The whole file is validated before the first briefing is shown. Any failure replaces the game with
+The whole file is validated before the first round is shown. Any failure replaces the game with
 a content error that names each affected round (or the top-level field). Nothing is graded.
 
 **Shape**
 
-1. `schemaVersion` is `1`; every field above is present with the stated type.
+1. `schemaVersion` is `1`; every field above is present with the stated type, and `callNotes` has
+   non-empty text for all six calls.
 2. Round ids are unique. Within a round, slot ids and card ids are unique.
-3. Every `learningOutcome` is `LO1`–`LO3`; every briefing text and the hint are non-empty.
-4. Every `sourceIds` entry names an existing source. Rule ids are exactly 1–8.
+3. Every `learningOutcome` is `LO1`–`LO4`; every briefing text, every ticket text and the hint are
+   non-empty.
+4. Every `sourceIds` entry names an existing source. Rule ids are exactly 1–9.
 
 **References**
 
@@ -232,7 +243,9 @@ a content error that names each affected round (or the top-level field). Nothing
 6. Every interface name in `shutdown` exists on that router.
 7. Every config-line string matches the grammar above.
 8. A `connect` without `device`, and a `config` with `linesByDevice`, appear only inside a `for`.
-   Every `config`, `save`, `show` and statement slot comes after a `connect`.
+   Every `config`, `save`, `show` and statement slot comes after a `connect`, except that a
+   statement slot may come first in a round whose tray holds a `connect` card (placing the calls
+   in order is then the point, and rule 9 says what a wrong order does).
 9. Every `messages` key is a known reason code and every known reason code has a message. Every
    `quote` names an existing router message.
 

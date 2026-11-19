@@ -1,0 +1,414 @@
+/* Round Trip. Layout: diagram on top, cards and script left, router state and trace right.
+   Colour is never the only signal: every state it shows is also written in text. */
+
+:root {
+  --bg: #10151c;
+  --panel: #19212b;
+  --line: #2e3a48;
+  --text: #e6edf3;
+  --muted: #9fb0c0;
+  --accent: #6cb6ff;
+  --good: #56d364;
+  --bad: #ff7b72;
+  --warn: #e3b341;
+  --focus: #ffd33d;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body { margin: 0 auto; max-width: 1280px; padding: 0 16px 24px; background: var(--bg); color: var(--text); }
+h1 { font-size: 1.3rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0 0 6px; }
+h3 { font-size: 0.92rem; margin: 10px 0 4px; }
+h4 { font-size: 0.8rem; margin: 6px 0 2px; color: var(--muted); font-weight: 600; }
+p { margin: 4px 0; }
+ul, ol { margin: 4px 0; padding-left: 20px; }
+code { font-family: var(--mono); font-size: 0.9em; background: #0b0f14; padding: 1px 4px; border-radius: 3px; }
+a { color: var(--accent); }
+[hidden] { display: none !important; }
+
+/* ---- the status bar: wordmark and level track ---- */
+.hud { display: flex; align-items: center; gap: 28px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.hud h1 { display: flex; align-items: center; gap: 8px; font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.logo { width: 26px; height: 26px; color: var(--good); }
+.track { display: flex; align-items: center; list-style: none; margin: 0; padding: 0; }
+.track li { display: flex; align-items: center; }
+.track li + li::before { content: ""; width: 34px; height: 4px; background: #2e3a48; }
+.track li.done + li::before, .track li.done + li.current::before { background: var(--good); }
+.track .node { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-weight: 700; font-size: 0.9rem;
+  background: #19212b; border: 2px solid #40536a; color: var(--muted); }
+.track .current .node { border-color: var(--focus); color: var(--text); box-shadow: 0 0 0 4px #ffd33d33; animation: glow 1.2s ease-in-out infinite alternate; }
+.track .done .node { background: var(--good); border-color: var(--good); color: #0b1a0f; }
+.track .star .node { background: var(--focus); border-color: var(--focus); color: #1f1700; }
+footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+main { padding-top: 12px; }
+section { margin-bottom: 12px; }
+
+/* ---- buttons and focus ---- */
+button {
+  font: inherit; color: var(--text); background: #243140; border: 1px solid #40536a;
+  border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button:hover:not(:disabled) { background: #2d3d50; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: #1f6feb; border-color: #388bfd; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #2b7bf3; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+h2[tabindex="-1"]:focus { outline: none; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+#runs { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+#status { min-height: 1.5em; padding: 6px 10px; background: var(--panel); border-left: 3px solid var(--accent); border-radius: 4px; }
+#hint { padding: 10px; background: #2a2412; border: 1px solid var(--warn); border-radius: 6px; }
+
+/* ---- diagram ---- */
+#diagram-area { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+#diagram svg { display: block; width: 100%; height: auto; max-height: 190px; }
+.node { fill: #223041; stroke: #5b7088; stroke-width: 1.5; }
+.node.router { fill: #1d3557; stroke: var(--accent); stroke-width: 2; }
+.host-icon .base { fill: #40536a; }
+.host-icon.happy .node { stroke: var(--good); }
+.glyph { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg text { fill: var(--text); font-size: 12px; text-anchor: middle; }
+svg text.name { font-weight: 700; font-size: 13px; }
+svg text.addr, svg text.subnet { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.wire { stroke-width: 4; stroke-linecap: round; transition: stroke 0.3s; }
+.wire.up { stroke: var(--good); }
+.wire.down { stroke: #4a5563; stroke-dasharray: 3 9; }
+svg text.mark { font-size: 11.5px; font-weight: 700; }
+svg text.mark.dropped { fill: var(--bad); }
+svg text.mark.delivered { fill: var(--good); }
+#dot circle { stroke: #0b0f14; stroke-width: 1.5; }
+#dot.request circle { fill: var(--accent); }
+#dot.reply circle { fill: var(--warn); }
+#dot text { font-size: 9.5px; fill: var(--text); }
+.under-diagram { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--muted); font-size: 0.88rem; }
+.state-label { font-weight: 700; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 10px; background: #2e3a48; color: var(--text); }
+#ping-caption { font-weight: 600; font-size: 1rem; color: var(--text); }
+#link-text { margin-left: auto; }
+/* Before the first Run of a round there is nothing to show: one line stands in for the three panels. */
+#no-output { display: none; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
+#output.empty #no-output { display: block; }
+#output.empty .fold { display: none; }
+
+/* ---- layout ---- */
+/* ---- the round as a ticket from hostA ---- */
+.ticket { margin-bottom: 10px; background: linear-gradient(#1c2531, #171f29); border: 1px solid var(--line); border-left: 5px solid var(--warn);
+  border-radius: 10px; padding: 10px 14px; }
+.ticket:has(.stamp.resolved) { border-left-color: var(--good); }
+.ticket-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ticket-tag { font: 700 0.74rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; background: #2e3a48; color: var(--muted); }
+#round-title { font-size: 1.1rem; margin: 0; }
+.stamp { margin-left: auto; font: 700 0.76rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 10px; border-radius: 4px;
+  border: 2px solid currentColor; transform: rotate(-3deg); }
+.stamp.open { color: var(--warn); }
+.stamp.resolved { color: var(--good); animation: settle 0.4s ease-out; }
+.ticket-body { display: flex; align-items: center; gap: 12px; margin: 8px 0 6px; flex-wrap: wrap; }
+.avatar { flex: none; width: 54px; }
+.avatar svg { display: block; width: 100%; }
+.avatar .screen { fill: #223041; stroke: #6f859c; stroke-width: 2; }
+.avatar .base { fill: #40536a; }
+.eye { fill: var(--text); }
+.mouth { fill: none; stroke: var(--text); stroke-width: 2.2; stroke-linecap: round; display: none; }
+.happy .mouth.smile, .sad .mouth.frown { display: inline; }
+.avatar.happy .screen { stroke: var(--good); }
+.avatar.happy { animation: bounce 0.5s ease-out; }
+.bubble { position: relative; flex: 1 1 18rem; max-width: 34rem; background: #0f151c; border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; }
+.bubble::before { content: ""; position: absolute; left: -7px; top: 50%; width: 12px; height: 12px; background: #0f151c; border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); transform: translateY(-50%) rotate(45deg); }
+#ticket-text { margin: 0; font-size: 1rem; }
+/* The goal: two lamps, lit by the ping. Each also says yes or not yet. */
+.goal { display: flex; flex-direction: column; gap: 5px; margin-left: auto; }
+.goal-label { font: 700 0.72rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.lamp { display: flex; align-items: center; gap: 7px; padding: 3px 12px 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: #0f151c; font-size: 0.88rem; white-space: nowrap; }
+.lamp .bulb { width: 12px; height: 12px; border-radius: 50%; background: #3a4654; box-shadow: inset 0 0 0 2px #0006; }
+.lamp.on { border-color: var(--good); }
+.lamp.on .bulb { background: var(--good); box-shadow: 0 0 9px 2px #56d36499; }
+.lamp.on strong { color: var(--good); }
+.lamp.off strong { color: var(--warn); }
+.tip { display: flex; align-items: flex-start; gap: 7px; margin: 4px 0 2px; color: #f0e3a6; font-size: 0.95rem; }
+.tip svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--focus); }
+#about { margin-top: 2px; color: var(--muted); font-size: 0.86rem; }
+#about[open] { background: #0f151c; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--text); }
+summary { cursor: pointer; border-radius: 4px; }
+
+/* Collapsible panels: open by default, and only the player collapses or reopens one. */
+.fold { margin-bottom: 12px; }
+.fold > summary { margin-bottom: 6px; }
+.fold > summary h2 { display: inline; margin: 0; }
+.fold:not([open]) > summary { color: var(--muted); }
+
+.motion { display: flex; gap: 8px; margin-top: 4px; }
+.motion button { padding: 1px 10px; font-size: 0.8rem; }
+.scroll { overflow: auto; }
+
+/* ---- cards and script ---- */
+/* How to play: three steps, the current one lit. */
+.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 10px; }
+.steps li { flex: 1; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
+.steps .n { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: #2e3a48; color: var(--text); font-weight: 700; font-size: 0.8rem; }
+.steps li.now { border-color: var(--focus); color: var(--text); background: #2a2610; font-weight: 600; }
+.steps li.now .n { background: var(--focus); color: #111; }
+.h-note { font-weight: 400; font-size: 0.82rem; color: var(--muted); margin-left: 6px; }
+
+#tray { display: flex; flex-wrap: wrap; gap: 10px; min-height: 60px; padding: 10px; background: #141b24; border: 1px dashed var(--line); border-radius: 10px; }
+/* Cards look like things to pick up: raised, with a grip. */
+.card { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 7px 12px 8px 22px; position: relative;
+  background: linear-gradient(#2c3b4e, #223041); border: 1px solid #5b7088; border-radius: 8px; box-shadow: 0 3px 0 #0b0f14, 0 4px 10px #0006;
+  cursor: grab; transition: transform 0.15s, box-shadow 0.15s; }
+.card::before { content: "⋮⋮"; position: absolute; left: 6px; top: 50%; transform: translateY(-50%); color: #6f859c; font-size: 0.8rem; letter-spacing: -2px; }
+.card:hover:not(:disabled) { transform: translateY(-2px); background: linear-gradient(#34465d, #283a4f); }
+.card:active { cursor: grabbing; }
+.card .type { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.card .text { font-family: var(--mono); font-size: 0.86rem; }
+.card.selected { transform: translateY(-6px); border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus), 0 9px 16px #000a; }
+.card.drop-back { animation: drop-back 0.35s ease-out; }
+.empty-tray { color: var(--muted); }
+
+#script { background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: var(--mono); font-size: 0.84rem; }
+.line { padding: 1px 4px 1px calc(4px + var(--indent) * 2.2em); white-space: pre-wrap; min-height: 1.5em; border-left: 3px solid transparent; }
+.line.running { background: #17324d; border-left-color: var(--accent); }
+.running-tag { color: var(--accent); font-weight: 700; }
+.line.crashed { background: #3d1a1a; border-left-color: var(--bad); }
+.crash-tag { color: var(--bad); font-weight: 700; }
+li.crashed .outcome { background: #5a1e1e; color: #ffd2cf; }
+.line .note { color: #8fbf8f; font-style: italic; }
+.line.pulse { animation: pulse 0.5s ease-out; }
+.slot { font-family: var(--mono); font-size: 0.84rem; padding: 2px 8px; margin: 2px 0; border-style: dashed; }
+/* An empty blank is an obvious gap: wide, striped, with a plus. */
+.slot.empty { min-width: 15em; padding: 6px 12px; text-align: left; color: #c9d6e2; border: 2px dashed #6f859c; border-radius: 8px;
+  background: repeating-linear-gradient(135deg, #18212c, #18212c 8px, #1d2835 8px, #1d2835 16px); }
+.slot.empty .plus { color: var(--focus); font-weight: 700; }
+.slot.filled { border: 1px solid #5b7088; border-radius: 8px; padding: 4px 10px; background: linear-gradient(#2c3b4e, #223041); box-shadow: 0 2px 0 #0b0f14; }
+.slot.target { border-color: var(--focus); color: var(--text); animation: glow 0.9s ease-in-out infinite alternate; }
+button.primary.ready { animation: glow 0.9s ease-in-out infinite alternate; }
+.slot.settle { animation: settle 0.3s ease-out; }
+
+/* ---- router state: a card under each router in the diagram ---- */
+#panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4%; padding: 0 18.5%; margin: 2px 0 8px; }
+.panel { position: relative; background: #141b24; border: 1px solid #40536a; border-radius: 10px; padding: 7px 10px; font-size: 0.84rem; }
+.panel header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.panel .who { font-size: 0.95rem; }
+.pill, .badge { padding: 1px 8px; border-radius: 10px; font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+.pill.if-up { background: #12361c; color: var(--good); }
+.pill.if-down, .pill.if-administratively-down { background: #3d1a1a; color: var(--bad); }
+.badge.saved { background: #12361c; color: var(--good); }
+.badge.unsaved { background: #3a2f0d; color: var(--warn); }
+.panel .more { margin-left: auto; padding: 0 8px; font-size: 0.76rem; border-radius: 10px; }
+.panel ul { list-style: none; padding: 0; margin: 3px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-family: var(--mono); font-size: 0.72rem; padding: 1px 6px; white-space: nowrap; border-radius: 6px; border: 1px solid #40536a; background: #1b2532; }
+.chip small { font-family: system-ui, sans-serif; color: var(--muted); }
+.chip.static { border-color: var(--accent); }
+.chip.waiting { border-style: dashed; border-color: var(--bad); color: var(--muted); }
+.chip.waiting small { color: var(--bad); }
+.chip.used { background: #17324d; outline: 2px solid var(--accent); }
+.used-tag { color: var(--accent); font-weight: 700; font-family: system-ui, sans-serif; }
+.changed { animation: flash 0.6s ease-out; outline: 1px solid var(--warn); }
+.changed-tag { color: var(--warn); font-weight: 700; font-size: 0.7rem; text-transform: uppercase; }
+.no-route { color: var(--bad); font-weight: 700; margin-top: 4px; }
+/* The pop-up: extra detail only. Shown while the pointer is on the router in the diagram, or when pinned with the details button. */
+.pop { display: none; position: absolute; z-index: 5; left: -1px; right: -1px; top: calc(100% + 4px); padding: 8px 10px;
+  background: #0b0f14; border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 10px 24px #000c; font-size: 0.82rem; }
+.pop ul.config { display: block; }
+.pop li { margin: 2px 0; }
+.panel.peek .pop, .panel.pinned .pop { display: block; }
+.node.router { cursor: help; }
+
+/* ---- log, trace, feedback ---- */
+#log { max-height: 16rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 30px; font-size: 0.86rem; min-height: 2.2em; }
+#log { list-style: none; padding-left: 8px; font-family: var(--mono); }
+#log li { margin: 0; }
+/* What Netmiko wrote to the router for this step. */
+pre.sent { margin: 0; padding: 1px 4px; font: 0.8rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre.sent.note { color: var(--muted); }
+.res { font-family: system-ui, sans-serif; font-size: 0.8rem; color: var(--muted); }
+li.applied .res { color: var(--good); }
+li.rejected .res, li.crashed .res { color: var(--bad); font-weight: 600; }
+li.no-change .res, li.reload .res { color: var(--warn); }
+li.rejected pre.sent, li.crashed pre.sent { background: #2a1416; border-radius: 4px; }
+.router-said { color: var(--bad); }
+.outcome { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 0 5px; border-radius: 3px; background: #2e3a48; }
+li.rejected .outcome { background: #5a1e1e; color: #ffd2cf; }
+li.applied .outcome { background: #12361c; color: #b6f0c0; }
+li.reload .outcome { background: #3a2f0d; color: #f5dc8f; }
+#trace, #feedback { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 2.2em; font-size: 0.88rem; }
+.trace-block + .trace-block { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.trace-block .summary { font-weight: 700; margin: 0 0 4px; }
+.phase { font: 700 0.7rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; background: #2e3a48; color: var(--muted); margin-right: 4px; }
+/* A leg of the ping as a row of hops. */
+.leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; list-style: none; padding: 0; margin: 3px 0; font-size: 0.82rem; }
+.leg .who { width: 4.6em; font: 700 0.72rem var(--mono); text-transform: uppercase; color: var(--muted); }
+.leg.request .who { color: var(--accent); }
+.leg.reply .who { color: var(--warn); }
+.leg .hop { padding: 1px 8px; border: 1px solid #40536a; border-radius: 999px; background: #1b2532; font-family: var(--mono); }
+.leg .hop + .hop::before, .leg .end::before { content: "→"; color: var(--muted); margin: 0 5px 0 -3px; font-family: system-ui, sans-serif; }
+.leg .hop + .hop { border-left: 0; border-radius: 0 999px 999px 0; padding-left: 4px; }
+.leg .hop.router { border-color: var(--accent); }
+.leg .hop small { color: var(--muted); font-family: system-ui, sans-serif; }
+.leg .hop.dropped { border-color: var(--bad); background: #2a1416; }
+.leg .hop.dropped small { color: var(--bad); font-weight: 600; }
+.leg .end { font-weight: 700; }
+.leg .end.ok { color: var(--good); }
+.leg .end.bad { color: var(--bad); }
+.cause { margin: 8px 0 4px; font-size: 0.95rem; }
+.cause .label { font: 700 0.7rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; background: #3d1a1a; color: var(--bad); margin-right: 4px; }
+.rules { list-style: none; padding: 0; margin: 6px 0 0; }
+.rules li { margin: 3px 0; }
+.rules summary { padding: 2px 4px; }
+.rules details[open] summary { color: var(--muted); }
+.rules details p { margin: 2px 0 6px 22px; color: var(--muted); font-size: 0.86rem; }
+.rule-n { font: 700 0.7rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; background: #2e3a48; color: var(--text); margin-right: 4px; }
+.verdict { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 1rem; }
+.verdict .icon { display: inline-grid; place-items: center; flex: none; width: 1.9em; height: 1.9em; border-radius: 50%; font-weight: 700; font-size: 1.05rem; }
+.verdict.solved .icon { background: var(--good); color: #0b1a0f; }
+.verdict.unsolved .icon { background: var(--warn); color: #1f1700; }
+.verdict.solved { background: #12361c; border-left: 4px solid var(--good); }
+.verdict.unsolved { background: #2b2230; border-left: 4px solid var(--warn); }
+
+/* ---- summary, dialog ---- */
+#view-summary, #view-error { max-width: 860px; }
+#takeaway { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+#takeaway-title { font-size: 1.15rem; }
+.code-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 6px; }
+#takeaway-code { margin: 0; padding: 12px 14px; background: #0b0f14; border: 1px solid var(--line); border-radius: 8px;
+  font: 0.84rem/1.55 var(--mono); white-space: pre; overflow-x: auto; }
+#takeaway-code .added { background: #2a2610; box-shadow: -4px 0 0 var(--focus); }
+.added-key { background: #2a2610; box-shadow: -4px 0 0 var(--focus); padding: 0 4px; }
+#next-steps li { margin: 5px 0; }
+table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; max-width: 420px; }
+dialog::backdrop { background: #000a; }
+
+/* ---- motion ---- */
+@keyframes glow { from { box-shadow: 0 0 0 0 #ffd33d00; } to { box-shadow: 0 0 10px 3px #ffd33daa; } }
+@keyframes bounce { 0% { transform: translateY(0); } 40% { transform: translateY(-7px); } 100% { transform: translateY(0); } }
+@keyframes settle { from { transform: translateY(-8px) scale(1.06); } to { transform: none; } }
+@keyframes drop-back { from { transform: translateY(-14px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@keyframes pulse { from { background: #24476b; } to { background: transparent; } }
+@keyframes flash { from { background: #7a6113; } to { background: #3a2f0d; } }
+
+/* With reduced motion every text change still happens, at once and alone (FR-008a, FR-031). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ==== One screen: ticket on top, script beside the network, the hand of cards along the bottom ==== */
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; max-width: 1560px; padding: 0 14px; }
+.hud { flex: none; padding: 8px 0; }
+#btn-restart { margin-left: auto; }
+button.quiet { background: transparent; border-color: var(--line); color: var(--muted); padding: 3px 12px; font-size: 0.86rem; }
+main { flex: 1 1 auto; min-height: 0; overflow: auto; padding-top: 8px; }
+section { margin-bottom: 0; }
+
+#view-round { display: grid; overflow: hidden; gap: 8px 12px; padding: 8px 0 10px;
+  grid-template-columns: minmax(0, 44fr) minmax(0, 16fr) minmax(0, 40fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "intro intro intro" "script net net" "cards cards actions"; }
+#round-intro { grid-area: intro; }
+.hand-cards { grid-area: cards; }
+.pane-script { grid-area: script; }
+.hand-actions { grid-area: actions; }
+.pane-net { grid-area: net; }
+.pane { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+/* The ticket as a strip */
+.ticket { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: center; margin: 0; padding: 6px 12px; }
+.ticket .avatar { width: 46px; }
+.ticket-head { gap: 8px; }
+#round-title { font-size: 1rem; }
+.stamp { margin-left: 2px; }
+p.bubble { display: inline-block; flex: none; max-width: none; margin: 4px 0 0; padding: 2px 12px; }
+.tip { margin: 3px 0 0; font-size: 0.9rem; }
+.goal { margin-left: 0; }
+#about { margin-top: 1px; }
+#about[open] { max-height: 30vh; overflow: auto; }
+.ticket-main { min-width: 0; }
+
+/* Left: the script, with the terminal under it */
+.script-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#script { flex: 1 1 auto; min-height: 0; overflow: auto; max-height: none; }
+.terminal { flex: none; margin: 0; }
+.terminal > summary { margin-bottom: 4px; }
+#log { height: 21vh; max-height: none; min-height: 0; background: #05080b; border-color: #1c2733; }
+#log:empty { height: 2.4em; }
+#log:empty::before { content: "$  press Run to see what Netmiko sends"; color: var(--muted); font-size: 0.8rem; }
+
+/* Right: the network, with where the ping went and why under it */
+#diagram-area { flex: none; padding: 6px 10px; }
+#diagram svg { max-height: 22vh; }
+#panels { padding: 0; gap: 8px; margin: 2px 0 6px; }
+#status.verdict { animation: settle 0.35s ease-out; border-left: 0; padding: 5px 10px; font-size: 0.95rem; }
+#status.verdict .icon { width: 1.6em; height: 1.6em; font-size: 0.95rem; }
+.under-diagram { margin: 0; }
+.motion { margin: 0 0 0 auto; flex: none; }
+.under-diagram { flex-wrap: nowrap; }
+#ping-caption { min-width: 0; }
+#link-text { white-space: nowrap; font-size: 0.8rem; }
+#link-text { margin-left: 0; }
+.panel.stopped { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+.stop-bubble { margin: 5px 0 0; padding: 3px 8px; border-radius: 8px; background: #3d1a1a; color: #ffd2cf; font-weight: 600; font-size: 0.82rem; }
+#output { flex: 1 1 auto; min-height: 0; overflow: auto; }
+#output.empty { display: none; }
+#output .fold { margin-bottom: 6px; }
+
+/* The hand: cards on the left, the buttons on the right */
+.hand-cards, .hand-actions { background: #141b24; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+.hand-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.hand-head h2 { margin: 0; }
+.steps { margin: 0; gap: 4px; }
+.steps li { flex: none; padding: 1px 10px 1px 3px; font-size: 0.78rem; }
+.steps .n { width: 1.35em; height: 1.35em; font-size: 0.72rem; }
+#tray { background: none; border: 0; padding: 0; min-height: 44px; max-height: 7.2rem; overflow: auto; gap: 8px; }
+.card { padding: 4px 10px 5px 20px; }
+.card .type { font-size: 0.62rem; }
+.card .text { font-size: 0.8rem; }
+.hand-actions { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.actions { margin: 0; }
+button.primary { padding: 9px 26px; font-size: 1.05rem; border-radius: 10px; box-shadow: 0 3px 0 #0d419d; }
+button.primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #0d419d; }
+#status { margin: 0; min-height: 1.4em; padding: 3px 10px; font-size: 0.88rem; }
+#hint { position: absolute; z-index: 6; left: 0; right: 0; bottom: calc(100% + 8px); box-shadow: 0 10px 24px #000c; }
+
+/* A short but wide window (a small laptop): the same board, but the page scrolls instead of each
+   part being squeezed. The script stays beside the network. */
+@media (max-height: 719px) and (min-width: 1100px) {
+  html, body { height: auto; }
+  body { display: block; padding-bottom: 12px; }
+  main { overflow: visible; }
+  #view-round { overflow: visible; grid-template-rows: auto; }
+  #script { max-height: 26rem; }
+  #log { height: 12rem; }
+  #output { max-height: none; overflow: visible; }
+  #diagram svg { max-height: none; }
+  #hint { position: static; margin-top: 6px; }
+}
+
+/* A narrow window: one column, the network first so the diagram keeps its full width, and the
+   page scrolls. Dense areas still scroll inside themselves (FR-032). */
+@media (max-width: 1099px) {
+  html, body { height: auto; }
+  body { display: block; padding: 0 10px 12px; }
+  html { font-size: 14px; }
+  main { overflow: visible; }
+  #view-round { overflow: visible; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto;
+    grid-template-areas: "intro" "net" "cards" "script" "actions"; }
+  #script { max-height: 26rem; }
+  #log { height: auto; max-height: 14rem; min-height: 2.4em; }
+  #output { max-height: none; overflow: visible; }
+  #diagram svg { max-height: none; }
+  #hint { position: static; margin-top: 6px; }
+  .under-diagram { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .ticket { grid-template-columns: auto minmax(0, 1fr); }
+  .goal { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  #panels { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Once a round is solved, Next is the button to press: it takes the primary look. */
+#btn-next:not(:disabled) { background: #1f6feb; border-color: #388bfd; font-weight: 600; padding: 9px 22px; font-size: 1.05rem; border-radius: 10px;
+  box-shadow: 0 3px 0 #0d419d; animation: glow 0.9s ease-in-out infinite alternate; }
