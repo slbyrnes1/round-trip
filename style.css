@@ -404,11 +404,15 @@ button.primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0
   .under-diagram { flex-wrap: wrap; }
 }
 @media (max-width: 640px) {
+  .hud { flex-wrap: wrap; gap: 10px; }
+  .track { order: 3; flex-basis: 100%; justify-content: center; }
+  .track li + li::before { width: 12px; }
+  .hand-head { flex-wrap: wrap; }
   .ticket { grid-template-columns: auto minmax(0, 1fr); }
   .goal { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
   #panels { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Once a round is solved, Next is the button to press: it takes the primary look. */
-#btn-next:not(:disabled) { background: #1f6feb; border-color: #388bfd; font-weight: 600; padding: 9px 22px; font-size: 1.05rem; border-radius: 10px;
+#btn-next:not(:disabled) { background: #1f6feb; color: #fff; border-color: #388bfd; font-weight: 600; padding: 9px 22px; font-size: 1.05rem; border-radius: 10px;
   box-shadow: 0 3px 0 #0d419d; animation: glow 0.9s ease-in-out infinite alternate; }
